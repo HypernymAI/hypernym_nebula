@@ -1,0 +1,43 @@
+{
+ "label": "before",
+ "time": "2026-09-27 02:47:54",
+ "native": {
+  "utf8proc": "2.9.0",
+  "unicode": "15.1.0",
+  "dim_bits": "18"
+ },
+ "specs": {
+  "V1": {
+   "n_messages": 4685,
+   "mean_chars": 1370.554962646745,
+   "ref_bucket_n": 214,
+   "ref_bucket_single_py_p50_us": 66.6255,
+   "ref_bucket_single_py_p99_us": 119.22104000000002,
+   "single_py_p50_us": 94.708,
+   "single_py_p99_us": 184.51343999999997,
+   "single_py_mean_us": 79.23067748132337,
+   "core1_us_per_msg": 77.28165229399795,
+   "core1_ns_per_char": 56.38712375660996,
+   "batch_all_cores_s": 1.0613889580126852,
+   "batch_16_threads_s": 1.1067973750032252,
+   "batch_native_all_cores_s": 0.640026624998427,
+   "batch_n": 100000
+  },
+  "V2": {
+   "n_messages": 4685,
+   "mean_chars": 1370.554962646745,
+   "ref_bucket_n": 214,
+   "ref_bucket_single_py_p50_us": 100.708,
+   "ref_bucket_single_py_p99_us": 141.47033000000002,
+   "single_py_p50_us": 125.916,
+   "single_py_p99_us": 254.00672,
+   "single_py_mean_us": 115.66202347918889,
+   "core1_us_per_msg": 112.26121494196168,
+   "core1_ns_per_char": 81.90931265183895,
+   "batch_all_cores_s": 1.3398019580054097,
+   "batch_16_threads_s": 1.362865041999612,
+   "batch_native_all_cores_s": 0.8464001670072321,
+   "batch_n": 100000
+  }
+ }
+}

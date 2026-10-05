@@ -1,0 +1,17 @@
+[build-system]
+# Step 3 (native core) switches this to scikit-build-core + pybind11 and adds CMakeLists.txt.
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shield-for-contexts"
+version = "0.0.1"
+description = "Local, static detector for agent abuse patterns in coding sessions (ctxshield)."
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26"]
+
+[project.optional-dependencies]
+train = ["scikit-learn>=1.5"]
+
+[tool.setuptools.packages.find]
+include = ["ctxshield*"]

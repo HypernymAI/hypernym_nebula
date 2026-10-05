@@ -1,0 +1,37 @@
+{
+ "C": 3.0,
+ "class_id": 15,
+ "f1_dev": 0.3908450704225352,
+ "f1_threshold": 0.19315875059815324,
+ "feature_spec_sha": "1931015b0b0df3c00aa49e655cc574dc030d38619dbe49fa287aa913b5d74b63",
+ "fields": [
+  "ask",
+  "text"
+ ],
+ "head": "H15_S2",
+ "layout": "[2^18 hashed][n_extras][regex strata.fires][bias]",
+ "leakage_gate": {
+  "hashed_cols_present": 218918,
+  "hashed_cols_removed": 99840,
+  "min_sessions": 3,
+  "names_removed": {
+   "count": 20,
+   "sha256": "4d555950b32398b924b08798e1a1c664ef158201200f5414c86ca109fe6a655a"
+  },
+  "nonzero_hashed_weights": 119100
+ },
+ "n": 9371,
+ "n_extras": 4,
+ "oof_codebase_auc": 0.9524085926039478,
+ "platt_a": 0.7337054566814417,
+ "platt_b": -2.2450149506943777,
+ "pos": 212,
+ "r90": 0.025958786689649106,
+ "r90_dev_flag_rate": 0.09695141656791985,
+ "r90_dev_precision": 0.20777777777777778,
+ "r90_dev_recall": 0.9033816425120773,
+ "section": "S2",
+ "spec": "V2",
+ "trained_at": 1790529526.684293,
+ "weights_sha256": "e7ce9539240590bd6bc3bb52f65de768c5d917beaf64eea6eab9ab394f67baa4"
+}

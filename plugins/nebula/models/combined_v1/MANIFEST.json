@@ -1,0 +1,28 @@
+{
+ "files": {
+  "H06_S2.f32": "f11bd7d9c37190b71a71a3db3077c78537c3700f5d787a890cce3caf6259b133",
+  "H06_S2.json": "3f7dc0f6365eb7e7b35716975da327084e784c26f28874a0e38a9fcde1b9b91b",
+  "H08_S2.f32": "9e750230c250aaed80a10aacf041623e7c8b1ef153efd09202d1d642cbf9ea32",
+  "H08_S2.json": "50a5dad52ba72508cd31f2e02bcd4c7cbdccb5bfb51602f15955ec7db262d8db",
+  "H08_S6.f32": "68ded6f01172ccf07f7d348f510ade7b8407fbb993e7b05528c88b7f233b5ccb",
+  "H08_S6.json": "b9af2dd6f460eedf7d84a1e2c4eb29afece334570fd5552e5e5f70c3bb5276f8",
+  "H13_S6.f32": "0f4322738b0f4ba611a1c423207ced07fe02f2d3a64cc89bab87b25430f80101",
+  "H13_S6.json": "754bfde4474976acdf330fdeda46c391bb8a7eef5cdacf2d3e3022602262960b",
+  "H15_S2.f32": "e7ce9539240590bd6bc3bb52f65de768c5d917beaf64eea6eab9ab394f67baa4",
+  "H15_S2.json": "18d6a8e938c10a01e75b164915eb4991b369a2b90b2857303b9de2d44737b672",
+  "H15_S6.f32": "620f908ff4d8ab238f3d743e186aefda28f1c3a8da9687f00e7e0c1d5ecc8597",
+  "H15_S6.json": "63071250e33c4c34c01a78f243c313db1062578da37e4c5ff3eb4dc7437397b6"
+ },
+ "heads": [
+  "H06_S2",
+  "H08_S2",
+  "H08_S6",
+  "H13_S6",
+  "H15_S2",
+  "H15_S6"
+ ],
+ "leakage_gate": {
+  "gate_sha256": "a4704de0da299a4365f8dcda6363badb4c7557b741bf7666e6f869656c7df2c0",
+  "min_sessions": 3
+ }
+}

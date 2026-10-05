@@ -1,0 +1,61 @@
+{
+ "format": "ctxshield.platforms",
+ "version": 1,
+ "built": "20260929_013627",
+ "python": "3.13 (uv-managed, pinned by pyproject)",
+ "backend": "cpu only (no Metal / CUDA in shipped modules)",
+ "modules": {
+  "_native.cpython-313-darwin.so": {
+   "targets": [
+    "macos-arm64",
+    "macos-x86_64"
+   ],
+   "floor": "macOS 11.0",
+   "cpu_baseline": {
+    "arm64": "apple-m1",
+    "x86_64": "x86-64-v2"
+   },
+   "sha256": "289b89776595780263e7407a190698837b914f4e26438b168057bb34cd8f162e",
+   "tested": [
+    "macOS arm64 (native)",
+    "macOS x86_64 (Rosetta)"
+   ]
+  },
+  "_native.cpython-313-x86_64-linux-gnu.so": {
+   "targets": [
+    "linux-x86_64"
+   ],
+   "floor": "glibc 2.28 (manylinux_2_28)",
+   "requires_symbols": [
+    "GLIBC_2.14",
+    "GLIBCXX_3.4.22"
+   ],
+   "cpu_baseline": "x86-64-v2",
+   "sha256": "14915a453372fe75fc692ffa1d70e9baea33acbcca80b305514b82505d68059e",
+   "tested": [
+    "manylinux_2_28 (glibc 2.28)",
+    "Debian (python:3.13-slim)"
+   ]
+  },
+  "_native.cpython-313-aarch64-linux-gnu.so": {
+   "targets": [
+    "linux-aarch64"
+   ],
+   "floor": "glibc 2.28 (manylinux_2_28)",
+   "requires_symbols": [
+    "GLIBC_2.17",
+    "GLIBCXX_3.4.22"
+   ],
+   "cpu_baseline": "armv8-a",
+   "sha256": "a814af44f779a3666b0d4dfd889252d92c2a76785d71a64fbd1b470d687d812e",
+   "tested": [
+    "manylinux_2_28 (glibc 2.28)",
+    "Debian (python:3.13-slim)"
+   ]
+  }
+ },
+ "windows": {
+  "built": false,
+  "note": "stub: nebula-run refuses on Windows with a clear message; use WSL (Linux module)"
+ }
+}

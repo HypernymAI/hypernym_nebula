@@ -1,0 +1,14 @@
+{
+  "name": "hypernym-nebula",
+  "description": "Hypernym Nebula for Claude Code: nebula, a local, offline shield for Claude's replies.",
+  "owner": {
+    "name": "Hypernym"
+  },
+  "plugins": [
+    {
+      "name": "nebula",
+      "source": "./plugins/nebula",
+      "description": "Local, offline shield: flags fabricated confession, decision handback, claim beyond evidence and forced repetition in Claude's replies. No network, no telemetry, no training on your data."
+    }
+  ]
+}

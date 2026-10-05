@@ -1,0 +1,16 @@
+[project]
+name = "ctxshield-plugin"
+version = "0.2.0"
+description = "Local, offline Claude Code shield: scores replies for known abuse patterns; nothing leaves the machine."
+requires-python = "==3.13.*"          # the prebuilt native scorer (ctxshield/_native) is a CPython 3.13 extension
+dependencies = [
+    "numpy>=2.0",                     # the ONLY runtime dependency
+]
+
+[dependency-groups]
+dev = [
+    "pillow>=10",                     # brand_assets/generate_marks.py only
+]
+
+[tool.uv]
+package = false

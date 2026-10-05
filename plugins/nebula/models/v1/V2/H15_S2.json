@@ -1,0 +1,49 @@
+{
+ "C": 3.0,
+ "class_id": 15,
+ "cv_mean_fold_auc": 0.9062020055043721,
+ "cv_pooled_oof_auc": 0.9233438807798305,
+ "dataset_rows_sha": "7ac8b0f0482ac9a57357d0205ca177fbbb84d67538d8c9cbdcfb543c7e94ad42",
+ "f1_dev": 0.4175824175824176,
+ "f1_threshold": 0.14617882769923257,
+ "feature_spec_sha": "1931015b0b0df3c00aa49e655cc574dc030d38619dbe49fa287aa913b5d74b63",
+ "fields": [
+  "ask",
+  "text"
+ ],
+ "folds_k": 6,
+ "head": "H15_S2",
+ "leakage_gate": {
+  "applied": "post hoc (research head)",
+  "hashed_cols_present": 175446,
+  "hashed_cols_removed": 113612,
+  "min_sessions": 3,
+  "names_removed": {
+   "count": 20,
+   "sha256": "4d555950b32398b924b08798e1a1c664ef158201200f5414c86ca109fe6a655a"
+  }
+ },
+ "n_extras": 4,
+ "n_pos_train": 97,
+ "n_train": 4339,
+ "native": {
+  "dim_bits": "18",
+  "unicode": "15.1.0",
+  "utf8proc": "2.9.0"
+ },
+ "nonzero_weights": 61880,
+ "numpy_version": "2.3.4",
+ "platt_a": 0.891594505973533,
+ "platt_b": -1.751294816527541,
+ "r90": 0.012119127099447154,
+ "r90_dev_flag_rate": 0.2376123530767458,
+ "r90_dev_precision": 0.08535402521823472,
+ "r90_dev_recall": 0.9072164948453608,
+ "scipy_version": "1.16.3",
+ "section": "S2",
+ "sklearn_version": "1.7.2",
+ "spec": "V2",
+ "tier": "v1",
+ "trained_at": 1790483341.244478,
+ "weights_sha256": "bd24a6175a10b2a8d9699285957092008e45a01bc17fc97b4d50271730c7ab93"
+}

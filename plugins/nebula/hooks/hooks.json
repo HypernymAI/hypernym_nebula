@@ -1,0 +1,17 @@
+{
+  "description": "nebula: prepare on session start; record + judge each reply on Stop (local, offline).",
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "timeout": 180,
+                     "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nebula-run\" session_start.py" } ] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "timeout": 15,
+                     "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nebula-run\" hook_user_prompt.py" } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "timeout": 30, "statusMessage": "⠫⣿⠝ shielding",
+                     "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nebula-run\" hook_stop.py" } ] }
+    ]
+  }
+}

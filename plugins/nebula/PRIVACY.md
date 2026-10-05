@@ -1,0 +1,38 @@
+# nebula — privacy
+
+**nebula never sends your data anywhere, and never trains on it.** Everything below is enforced by code and proved by
+tests (`tests/test_privacy.py`, `tests/test_plugin.py`) — not just promised.
+
+| guarantee | how it is enforced | proof |
+|---|---|---|
+| **No network. Nothing leaves your machine.** No telemetry, no uploads, no update checks. | Every nebula process loads `shield/noegress.py` first. It installs a Python audit hook — which cannot be removed once installed — that blocks every network connection, DNS lookup and HTTP request, and blocks launching any program except `ps` and `osascript` (reading your terminal's background colour; local only). The MCP server talks to Claude Code over stdin/stdout, not a socket. | N1 every entry point imports it first · N2 no network library anywhere in the code · N3 inside all 10 entry-point processes, a real socket, DNS lookup, HTTP request and `curl` launch are all blocked |
+| **No training on your data.** | The models are fixed files shipped with the plugin. Every load verifies them against a sha256 manifest; nothing in the plugin writes to them. | D5 one flipped bit in a weight file → the plugin refuses to load |
+| **Your text is not stored by default.** | `text_retention` defaults to `none`: the local database keeps scores, flags and counts (caps ratio, profanity count…), not what you or Claude wrote. Opt in with `/nebula:shield-retention excerpt` or `full`. | D3 after a full hook run, the secret prompt and reply text appear nowhere in the database files |
+| **Your data stays in `~/.nebula`, readable only by you.** | The directory is created and kept at mode 0700. | D3 |
+| **You can see all of it.** | `/nebula:shield-privacy` reports exactly what is stored, where and how much. `/nebula:shield-export` writes all of it to a readable JSON file. | D4 |
+| **You can delete all of it.** | `/nebula:shield-purge` shows what would be deleted; `/nebula:shield-purge yes` deletes the database, caches and logs (your settings are kept). | D4 |
+| **You can keep projects out entirely.** | `/nebula:shield-exclude <glob>` — matching sessions are never opened, scored or stored. | D2 the transcript file is never even opened (proved with a file-open audit hook) |
+| **Off means off.** | `"enabled": false` in `~/.nebula/settings.json` — the hooks read nothing and create nothing. | D1 |
+| **Your history is not read unless you ask.** | Only the current session is recorded, as you work. Reading past sessions is opt-in: `/nebula:shield-backfill`. | — |
+| **Your status line is yours.** | On session start the shared hypernym-nebula status line is set ONLY when you have none (or an older one of ours): `~/.claude/settings.json` is backed up first and only its `statusLine` entry changes. A status line that isn't ours is never replaced (unless you run `/nebula:statusline force`). `/nebula:statusline remove` takes out only ours, and it is not re-added until you install it again. The status-line program only runs the two plugins' own status programs; it has no network code. | D6 |
+
+## What is downloaded, once
+
+On the first session after install, `uv` creates the plugin's private Python environment (Python 3.13 + numpy,
+pinned by `uv.lock`). That is a download of **packages**, from PyPI — it sends nothing about you. After that the plugin
+runs offline.
+
+## The models were trained on the author's sessions — and gated
+
+The detectors were trained on the plugin author's own labeled Claude Code sessions, never on yours. Before release the
+weights passed a **leakage gate**: every feature seen in fewer than 3 of the author's sessions was removed and the
+models retrained without them (39–58% of feature columns per detector), then re-judged against the same held-out
+codebases — every verdict unchanged. A probe checks that a phrase which occurred in only one training session moves a
+score no more than an ordinary phrase does (4 of 6 detectors pass — claim beyond evidence fails and decision handback (reply) ties; your project, company and personal names were also removed from the weights; see `LEAKAGE_GATE.json` / `LEAKAGE_PROBE_V2.json`).
+
+## Files
+
+`~/.nebula/settings.json` (yours; updates never touch it) · `config.json` (derived) · `nebula.db` (the record) ·
+`termbg.json` (terminal colour cache) · `sync.log`,
+`export-*.json` (only if you export). Shared with the hypernym plugin, no data: `~/.hypernym-nebula/bin/` (the status-line
+launcher + `nebula_statusline.py`) and `statusline_off` (only after you remove the status line).

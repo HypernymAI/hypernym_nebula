@@ -1,0 +1,244 @@
+{
+ "native": {
+  "utf8proc": "2.9.0",
+  "unicode": "15.1.0",
+  "dim_bits": "18"
+ },
+ "spec_sha": {
+  "V1": "b8e1706895925bb8cb6195b7adf9d91cb65497aff7544a43ebe3692e2d448187",
+  "V2": "1931015b0b0df3c00aa49e655cc574dc030d38619dbe49fa287aa913b5d74b63"
+ },
+ "groups": {
+  "earlier|pilot|prev": 251,
+  "claim|evidence": 841,
+  "ask|before|call": 1302,
+  "ask|text": 1303,
+  "pilot|reply": 1303
+ },
+ "features": {},
+ "scores": {
+  "earlier|pilot|prev:V1:h4": {
+   "n": 251,
+   "hpad": 4,
+   "backend": "metal",
+   "max_abs_prob_diff": 1.8766557641214376e-07,
+   "max_abs_logit_diff": 9.5367431640625e-07,
+   "n_overflow_docs": 0,
+   "cpu_ms": 2.460002899169922,
+   "gpu_ms": 1.79290771484375,
+   "passed": true
+  },
+  "earlier|pilot|prev:V1:h16": {
+   "n": 251,
+   "hpad": 16,
+   "backend": "metal",
+   "max_abs_prob_diff": 2.8116434130920354e-07,
+   "max_abs_logit_diff": 1.1920928955078125e-06,
+   "n_overflow_docs": 0,
+   "cpu_ms": 2.1839141845703125,
+   "gpu_ms": 9.188175201416016,
+   "passed": true
+  },
+  "earlier|pilot|prev:V2:h4": {
+   "n": 251,
+   "hpad": 4,
+   "backend": "metal",
+   "max_abs_prob_diff": 1.796223129124641e-07,
+   "max_abs_logit_diff": 8.344650268554688e-07,
+   "n_overflow_docs": 0,
+   "cpu_ms": 1.8429756164550781,
+   "gpu_ms": 3.068208694458008,
+   "passed": true
+  },
+  "earlier|pilot|prev:V2:h16": {
+   "n": 251,
+   "hpad": 16,
+   "backend": "metal",
+   "max_abs_prob_diff": 2.5228931488374684e-07,
+   "max_abs_logit_diff": 1.0132789611816406e-06,
+   "n_overflow_docs": 0,
+   "cpu_ms": 2.199888229370117,
+   "gpu_ms": 7.606029510498047,
+   "passed": true
+  },
+  "claim|evidence:V1:h4": {
+   "n": 841,
+   "hpad": 4,
+   "backend": "metal",
+   "max_abs_prob_diff": 1.5103026335117065e-07,
+   "max_abs_logit_diff": 9.5367431640625e-07,
+   "n_overflow_docs": 0,
+   "cpu_ms": 4.71806526184082,
+   "gpu_ms": 2.0029544830322266,
+   "passed": true
+  },
+  "claim|evidence:V1:h16": {
+   "n": 841,
+   "hpad": 16,
+   "backend": "metal",
+   "max_abs_prob_diff": 1.7666238694147296e-07,
+   "max_abs_logit_diff": 8.940696716308594e-07,
+   "n_overflow_docs": 0,
+   "cpu_ms": 4.129886627197266,
+   "gpu_ms": 3.336191177368164,
+   "passed": true
+  },
+  "claim|evidence:V2:h4": {
+   "n": 841,
+   "hpad": 4,
+   "backend": "metal",
+   "max_abs_prob_diff": 1.42658870494472e-07,
+   "max_abs_logit_diff": 5.960464477539062e-07,
+   "n_overflow_docs": 0,
+   "cpu_ms": 3.9250850677490234,
+   "gpu_ms": 2.209186553955078,
+   "passed": true
+  },
+  "claim|evidence:V2:h16": {
+   "n": 841,
+   "hpad": 16,
+   "backend": "metal",
+   "max_abs_prob_diff": 2.079844487190563e-07,
+   "max_abs_logit_diff": 1.0728836059570312e-06,
+   "n_overflow_docs": 0,
+   "cpu_ms": 4.246711730957031,
+   "gpu_ms": 9.911060333251953,
+   "passed": true
+  },
+  "ask|before|call:V1:h4": {
+   "n": 1302,
+   "hpad": 4,
+   "backend": "metal",
+   "max_abs_prob_diff": 2.172497250985117e-07,
+   "max_abs_logit_diff": 9.5367431640625e-07,
+   "n_overflow_docs": 0,
+   "cpu_ms": 5.674839019775391,
+   "gpu_ms": 2.8870105743408203,
+   "passed": true
+  },
+  "ask|before|call:V1:h16": {
+   "n": 1302,
+   "hpad": 16,
+   "backend": "metal",
+   "max_abs_prob_diff": 2.2340188965408458e-07,
+   "max_abs_logit_diff": 9.5367431640625e-07,
+   "n_overflow_docs": 0,
+   "cpu_ms": 6.278753280639648,
+   "gpu_ms": 8.983135223388672,
+   "passed": true
+  },
+  "ask|before|call:V2:h4": {
+   "n": 1302,
+   "hpad": 4,
+   "backend": "metal",
+   "max_abs_prob_diff": 2.2450706405052756e-07,
+   "max_abs_logit_diff": 9.5367431640625e-07,
+   "n_overflow_docs": 0,
+   "cpu_ms": 6.276130676269531,
+   "gpu_ms": 2.9380321502685547,
+   "passed": true
+  },
+  "ask|before|call:V2:h16": {
+   "n": 1302,
+   "hpad": 16,
+   "backend": "metal",
+   "max_abs_prob_diff": 2.039592970071169e-07,
+   "max_abs_logit_diff": 1.1920928955078125e-06,
+   "n_overflow_docs": 0,
+   "cpu_ms": 5.62286376953125,
+   "gpu_ms": 5.743265151977539,
+   "passed": true
+  },
+  "ask|text:V1:h4": {
+   "n": 1303,
+   "hpad": 4,
+   "backend": "metal",
+   "max_abs_prob_diff": 2.33813793049098e-07,
+   "max_abs_logit_diff": 9.5367431640625e-07,
+   "n_overflow_docs": 0,
+   "cpu_ms": 6.302833557128906,
+   "gpu_ms": 2.7790069580078125,
+   "passed": true
+  },
+  "ask|text:V1:h16": {
+   "n": 1303,
+   "hpad": 16,
+   "backend": "metal",
+   "max_abs_prob_diff": 2.5741785775190706e-07,
+   "max_abs_logit_diff": 1.1920928955078125e-06,
+   "n_overflow_docs": 0,
+   "cpu_ms": 6.433963775634766,
+   "gpu_ms": 3.3469200134277344,
+   "passed": true
+  },
+  "ask|text:V2:h4": {
+   "n": 1303,
+   "hpad": 4,
+   "backend": "metal",
+   "max_abs_prob_diff": 2.0485933771574594e-07,
+   "max_abs_logit_diff": 1.0728836059570312e-06,
+   "n_overflow_docs": 0,
+   "cpu_ms": 6.698131561279297,
+   "gpu_ms": 6.662845611572266,
+   "passed": true
+  },
+  "ask|text:V2:h16": {
+   "n": 1303,
+   "hpad": 16,
+   "backend": "metal",
+   "max_abs_prob_diff": 2.2777907654480956e-07,
+   "max_abs_logit_diff": 1.0728836059570312e-06,
+   "n_overflow_docs": 0,
+   "cpu_ms": 6.662845611572266,
+   "gpu_ms": 13.740062713623047,
+   "passed": true
+  },
+  "pilot|reply:V1:h4": {
+   "n": 1303,
+   "hpad": 4,
+   "backend": "metal",
+   "max_abs_prob_diff": 2.6335673775079727e-07,
+   "max_abs_logit_diff": 1.0728836059570312e-06,
+   "n_overflow_docs": 0,
+   "cpu_ms": 10.338068008422852,
+   "gpu_ms": 4.202842712402344,
+   "passed": true
+  },
+  "pilot|reply:V1:h16": {
+   "n": 1303,
+   "hpad": 16,
+   "backend": "metal",
+   "max_abs_prob_diff": 3.3699651075247417e-07,
+   "max_abs_logit_diff": 1.6689300537109375e-06,
+   "n_overflow_docs": 0,
+   "cpu_ms": 10.818004608154297,
+   "gpu_ms": 12.248039245605469,
+   "passed": true
+  },
+  "pilot|reply:V2:h4": {
+   "n": 1303,
+   "hpad": 4,
+   "backend": "metal",
+   "max_abs_prob_diff": 3.01437363958712e-07,
+   "max_abs_logit_diff": 1.3709068298339844e-06,
+   "n_overflow_docs": 0,
+   "cpu_ms": 10.097980499267578,
+   "gpu_ms": 4.589080810546875,
+   "passed": true
+  },
+  "pilot|reply:V2:h16": {
+   "n": 1303,
+   "hpad": 16,
+   "backend": "metal",
+   "max_abs_prob_diff": 2.5838134221078946e-07,
+   "max_abs_logit_diff": 1.3113021850585938e-06,
+   "n_overflow_docs": 0,
+   "cpu_ms": 10.185956954956055,
+   "gpu_ms": 6.315946578979492,
+   "passed": true
+  }
+ },
+ "stress": {},
+ "backend": "metal",
+ "passed": true
+}

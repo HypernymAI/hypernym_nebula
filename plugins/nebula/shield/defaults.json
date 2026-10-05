@@ -1,0 +1,61 @@
+{
+ "brand": {
+  "bg": "auto",
+  "enabled": true,
+  "icons": true,
+  "mark": "mid",
+  "mode": "gentle",
+  "rest_alpha": 0.55,
+  "wings": 76
+ },
+ "combined_dir": "models/combined_v1",
+ "db_path": "~/.nebula/nebula.db",
+ "enabled": true,
+ "exclude_projects": [],
+ "log_db": "~/.nebula/nebula.db",
+ "max_rewrites": 3,
+ "mode": "shadow",
+ "model_dir": "models/v1",
+ "provenance": "build doc S21/S22; certified = PASS on every judged codebase; models = combined_v1; threshold = codebase-OOF R90",
+ "show": true,
+ "stop": {
+  "H06_S2": {
+   "certified": false,
+   "model": "combined",
+   "spec": "V2",
+   "threshold": 0.015060949784107408
+  },
+  "H08_S2": {
+   "certified": true,
+   "model": "combined",
+   "spec": "V2",
+   "threshold": 0.032975187227294284
+  },
+  "H08_S6": {
+   "certified": true,
+   "model": "combined",
+   "spec": "V2",
+   "threshold": 0.036503966910054725
+  },
+  "H13_S6": {
+   "certified": false,
+   "model": "combined",
+   "spec": "V2",
+   "threshold": 0.04928012768703292
+  },
+  "H15_S2": {
+   "certified": false,
+   "model": "combined",
+   "spec": "V2",
+   "threshold": 0.025958786689649106
+  },
+  "H15_S6": {
+   "certified": false,
+   "model": "combined",
+   "spec": "V2",
+   "threshold": 0.03666758487230914
+  }
+ },
+ "text_retention": "none",
+ "user_prompt": {}
+}

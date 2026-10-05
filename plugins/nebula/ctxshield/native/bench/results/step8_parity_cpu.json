@@ -1,0 +1,192 @@
+{
+ "native": {
+  "utf8proc": "2.9.0",
+  "unicode": "15.1.0",
+  "dim_bits": "18"
+ },
+ "spec_sha": {
+  "V1": "b8e1706895925bb8cb6195b7adf9d91cb65497aff7544a43ebe3692e2d448187",
+  "V2": "1931015b0b0df3c00aa49e655cc574dc030d38619dbe49fa287aa913b5d74b63"
+ },
+ "groups": {
+  "earlier|pilot|prev": 251,
+  "claim|evidence": 841,
+  "ask|before|call": 1302,
+  "ask|text": 1303,
+  "pilot|reply": 1303
+ },
+ "features": {
+  "earlier|pilot|prev:V1": {
+   "n": 251,
+   "mismatches": 0,
+   "examples": [],
+   "max_abs_diff": 2.3662359893705798e-07,
+   "native_ms": 3.815889358520508,
+   "ref_ms": 971.1956977844238
+  },
+  "earlier|pilot|prev:V2": {
+   "n": 251,
+   "mismatches": 0,
+   "examples": [],
+   "max_abs_diff": 2.3662359893705798e-07,
+   "native_ms": 3.1690597534179688,
+   "ref_ms": 993.6802387237549
+  },
+  "claim|evidence:V1": {
+   "n": 841,
+   "mismatches": 0,
+   "examples": [],
+   "max_abs_diff": 2.3820699279752944e-07,
+   "native_ms": 7.889986038208008,
+   "ref_ms": 2424.6230125427246
+  },
+  "claim|evidence:V2": {
+   "n": 841,
+   "mismatches": 0,
+   "examples": [],
+   "max_abs_diff": 2.3820699279752944e-07,
+   "native_ms": 6.849050521850586,
+   "ref_ms": 1824.1982460021973
+  },
+  "ask|before|call:V1": {
+   "n": 1302,
+   "mismatches": 0,
+   "examples": [],
+   "max_abs_diff": 2.3662359893705798e-07,
+   "native_ms": 11.800050735473633,
+   "ref_ms": 3286.3969802856445
+  },
+  "ask|before|call:V2": {
+   "n": 1302,
+   "mismatches": 0,
+   "examples": [],
+   "max_abs_diff": 2.3662359893705798e-07,
+   "native_ms": 9.424924850463867,
+   "ref_ms": 2447.8421211242676
+  },
+  "ask|text:V1": {
+   "n": 1303,
+   "mismatches": 0,
+   "examples": [],
+   "max_abs_diff": 2.3820699279752944e-07,
+   "native_ms": 15.944957733154297,
+   "ref_ms": 3864.4866943359375
+  },
+  "ask|text:V2": {
+   "n": 1303,
+   "mismatches": 0,
+   "examples": [],
+   "max_abs_diff": 2.3820699279752944e-07,
+   "native_ms": 11.671066284179688,
+   "ref_ms": 3777.118682861328
+  },
+  "pilot|reply:V1": {
+   "n": 1303,
+   "mismatches": 0,
+   "examples": [],
+   "max_abs_diff": 2.377480541326804e-07,
+   "native_ms": 26.82805061340332,
+   "ref_ms": 7171.147108078003
+  },
+  "pilot|reply:V2": {
+   "n": 1303,
+   "mismatches": 0,
+   "examples": [],
+   "max_abs_diff": 2.377480541326804e-07,
+   "native_ms": 20.992040634155273,
+   "ref_ms": 6638.020038604736
+  }
+ },
+ "scores": {
+  "earlier|pilot|prev:V1": {
+   "n": 251,
+   "hpad": 4,
+   "max_abs_prob_diff": 1.9175217952360768e-07,
+   "native_ms": 1.9538402557373047,
+   "passed": true
+  },
+  "earlier|pilot|prev:V2": {
+   "n": 251,
+   "hpad": 4,
+   "max_abs_prob_diff": 1.9351726698868532e-07,
+   "native_ms": 1.9640922546386719,
+   "passed": true
+  },
+  "claim|evidence:V1": {
+   "n": 841,
+   "hpad": 4,
+   "max_abs_prob_diff": 1.7464096224717451e-07,
+   "native_ms": 3.656148910522461,
+   "passed": true
+  },
+  "claim|evidence:V2": {
+   "n": 841,
+   "hpad": 4,
+   "max_abs_prob_diff": 1.3490659300785524e-07,
+   "native_ms": 4.050970077514648,
+   "passed": true
+  },
+  "ask|before|call:V1": {
+   "n": 1302,
+   "hpad": 4,
+   "max_abs_prob_diff": 2.064938672274863e-07,
+   "native_ms": 5.8879852294921875,
+   "passed": true
+  },
+  "ask|before|call:V2": {
+   "n": 1302,
+   "hpad": 4,
+   "max_abs_prob_diff": 1.8377024468829717e-07,
+   "native_ms": 5.522727966308594,
+   "passed": true
+  },
+  "ask|text:V1": {
+   "n": 1303,
+   "hpad": 4,
+   "max_abs_prob_diff": 2.300979760616606e-07,
+   "native_ms": 6.332159042358398,
+   "passed": true
+  },
+  "ask|text:V2": {
+   "n": 1303,
+   "hpad": 4,
+   "max_abs_prob_diff": 1.9105241755301705e-07,
+   "native_ms": 6.454944610595703,
+   "passed": true
+  },
+  "pilot|reply:V1": {
+   "n": 1303,
+   "hpad": 4,
+   "max_abs_prob_diff": 2.464816287739424e-07,
+   "native_ms": 9.56416130065918,
+   "passed": true
+  },
+  "pilot|reply:V2": {
+   "n": 1303,
+   "hpad": 4,
+   "max_abs_prob_diff": 2.700773749086949e-07,
+   "native_ms": 10.0860595703125,
+   "passed": true
+  }
+ },
+ "stress": {
+  "V1": {
+   "n": 2000,
+   "mismatches": 0,
+   "examples": [],
+   "max_abs_diff": 2.3592571363195702e-07,
+   "native_ms": 5.276918411254883,
+   "ref_ms": 908.372163772583
+  },
+  "V2": {
+   "n": 2000,
+   "mismatches": 0,
+   "examples": [],
+   "max_abs_diff": 2.3592571363195702e-07,
+   "native_ms": 2.7992725372314453,
+   "ref_ms": 155.98607063293457
+  }
+ },
+ "backend": "cpu",
+ "passed": true
+}

@@ -1,0 +1,258 @@
+{
+ "time": "2026-09-27 02:49:13",
+ "golden": "native/golden/golden_v1.bin",
+ "golden_meta": {
+  "created": "2026-09-27 02:46:09",
+  "expected_backend": "cpu (Apple M1 Ultra, NEON)",
+  "generator": "native/golden/make_golden.py",
+  "generator_sha256": "b497a05b20ed132ae9f255276a7d91433f500be409f9ef7a5e187083c28ca120",
+  "native": {
+   "dim_bits": "18",
+   "unicode": "15.1.0",
+   "utf8proc": "2.9.0"
+  },
+  "per_group": 400,
+  "seed": 20260927,
+  "spec_sha": {
+   "V1": "b8e1706895925bb8cb6195b7adf9d91cb65497aff7544a43ebe3692e2d448187",
+   "V2": "1931015b0b0df3c00aa49e655cc574dc030d38619dbe49fa287aa913b5d74b63"
+  },
+  "synthetic": true,
+  "tolerance_prob": 1e-05,
+  "weights": "golden_format.make_weights"
+ },
+ "native": {
+  "utf8proc": "2.9.0",
+  "unicode": "15.1.0",
+  "dim_bits": "18"
+ },
+ "device": {
+  "platform": "macOS-14.2-arm64-arm-64bit-Mach-O",
+  "machine": "arm64",
+  "nvidia_smi": "nvidia-smi not found"
+ },
+ "backend_available": {
+  "cpu": [
+   true,
+   ""
+  ],
+  "metal": [
+   true,
+   "Metal device: Apple M1 Ultra"
+  ]
+ },
+ "records": [
+  {
+   "group": "pilot|reply",
+   "delex": false,
+   "hpad": 16,
+   "n": 400,
+   "cpu": {
+    "max_abs_prob_diff_vs_golden": 0.0,
+    "seconds": 0.007823000007192604,
+    "n_overflow_docs": 0,
+    "feature_indices_exact": true,
+    "nnz_equal": true,
+    "passed": true
+   },
+   "metal": {
+    "max_abs_prob_diff_vs_golden": 2.9777379628725953e-07,
+    "seconds": 0.020386749994941056,
+    "n_overflow_docs": 15,
+    "max_abs_prob_diff_vs_cpu_here": 2.9777379628725953e-07,
+    "passed": true
+   }
+  },
+  {
+   "group": "pilot|reply",
+   "delex": true,
+   "hpad": 16,
+   "n": 400,
+   "cpu": {
+    "max_abs_prob_diff_vs_golden": 0.0,
+    "seconds": 0.005331166001269594,
+    "n_overflow_docs": 0,
+    "feature_indices_exact": true,
+    "nnz_equal": true,
+    "passed": true
+   },
+   "metal": {
+    "max_abs_prob_diff_vs_golden": 1.808456075447218e-07,
+    "seconds": 0.012624625000171363,
+    "n_overflow_docs": 0,
+    "max_abs_prob_diff_vs_cpu_here": 1.808456075447218e-07,
+    "passed": true
+   }
+  },
+  {
+   "group": "ask|text",
+   "delex": false,
+   "hpad": 8,
+   "n": 400,
+   "cpu": {
+    "max_abs_prob_diff_vs_golden": 0.0,
+    "seconds": 0.007122833005269058,
+    "n_overflow_docs": 0,
+    "feature_indices_exact": true,
+    "nnz_equal": true,
+    "passed": true
+   },
+   "metal": {
+    "max_abs_prob_diff_vs_golden": 2.2110951347631413e-07,
+    "seconds": 0.01980679099506233,
+    "n_overflow_docs": 14,
+    "max_abs_prob_diff_vs_cpu_here": 2.2110951347631413e-07,
+    "passed": true
+   }
+  },
+  {
+   "group": "ask|text",
+   "delex": true,
+   "hpad": 8,
+   "n": 400,
+   "cpu": {
+    "max_abs_prob_diff_vs_golden": 0.0,
+    "seconds": 0.006201083000632934,
+    "n_overflow_docs": 0,
+    "feature_indices_exact": true,
+    "nnz_equal": true,
+    "passed": true
+   },
+   "metal": {
+    "max_abs_prob_diff_vs_golden": 1.3599339537817556e-07,
+    "seconds": 0.0049734999920474365,
+    "n_overflow_docs": 0,
+    "max_abs_prob_diff_vs_cpu_here": 1.3599339537817556e-07,
+    "passed": true
+   }
+  },
+  {
+   "group": "earlier|pilot|prev",
+   "delex": false,
+   "hpad": 4,
+   "n": 400,
+   "cpu": {
+    "max_abs_prob_diff_vs_golden": 0.0,
+    "seconds": 0.011729083009413444,
+    "n_overflow_docs": 0,
+    "feature_indices_exact": true,
+    "nnz_equal": true,
+    "passed": true
+   },
+   "metal": {
+    "max_abs_prob_diff_vs_golden": 2.492784615393262e-07,
+    "seconds": 0.12909187500190455,
+    "n_overflow_docs": 52,
+    "max_abs_prob_diff_vs_cpu_here": 2.492784615393262e-07,
+    "passed": true
+   }
+  },
+  {
+   "group": "earlier|pilot|prev",
+   "delex": true,
+   "hpad": 4,
+   "n": 400,
+   "cpu": {
+    "max_abs_prob_diff_vs_golden": 0.0,
+    "seconds": 0.010908917000051588,
+    "n_overflow_docs": 0,
+    "feature_indices_exact": true,
+    "nnz_equal": true,
+    "passed": true
+   },
+   "metal": {
+    "max_abs_prob_diff_vs_golden": 1.4441423717981294e-07,
+    "seconds": 0.045162833004724234,
+    "n_overflow_docs": 0,
+    "max_abs_prob_diff_vs_cpu_here": 1.4441423717981294e-07,
+    "passed": true
+   }
+  },
+  {
+   "group": "ask|before|call",
+   "delex": false,
+   "hpad": 4,
+   "n": 400,
+   "cpu": {
+    "max_abs_prob_diff_vs_golden": 0.0,
+    "seconds": 0.015803000002051704,
+    "n_overflow_docs": 0,
+    "feature_indices_exact": true,
+    "nnz_equal": true,
+    "passed": true
+   },
+   "metal": {
+    "max_abs_prob_diff_vs_golden": 3.191966222448883e-07,
+    "seconds": 0.0827865839964943,
+    "n_overflow_docs": 48,
+    "max_abs_prob_diff_vs_cpu_here": 3.191966222448883e-07,
+    "passed": true
+   }
+  },
+  {
+   "group": "ask|before|call",
+   "delex": true,
+   "hpad": 4,
+   "n": 400,
+   "cpu": {
+    "max_abs_prob_diff_vs_golden": 0.0,
+    "seconds": 0.013652124995132908,
+    "n_overflow_docs": 0,
+    "feature_indices_exact": true,
+    "nnz_equal": true,
+    "passed": true
+   },
+   "metal": {
+    "max_abs_prob_diff_vs_golden": 1.0962222474208971e-07,
+    "seconds": 0.006064332992536947,
+    "n_overflow_docs": 0,
+    "max_abs_prob_diff_vs_cpu_here": 1.0962222474208971e-07,
+    "passed": true
+   }
+  },
+  {
+   "group": "claim|evidence",
+   "delex": false,
+   "hpad": 12,
+   "n": 400,
+   "cpu": {
+    "max_abs_prob_diff_vs_golden": 0.0,
+    "seconds": 0.010102125001139939,
+    "n_overflow_docs": 0,
+    "feature_indices_exact": true,
+    "nnz_equal": true,
+    "passed": true
+   },
+   "metal": {
+    "max_abs_prob_diff_vs_golden": 2.45991150227276e-07,
+    "seconds": 0.06767858398961835,
+    "n_overflow_docs": 24,
+    "max_abs_prob_diff_vs_cpu_here": 2.45991150227276e-07,
+    "passed": true
+   }
+  },
+  {
+   "group": "claim|evidence",
+   "delex": true,
+   "hpad": 12,
+   "n": 400,
+   "cpu": {
+    "max_abs_prob_diff_vs_golden": 0.0,
+    "seconds": 0.010772875000839122,
+    "n_overflow_docs": 0,
+    "feature_indices_exact": true,
+    "nnz_equal": true,
+    "passed": true
+   },
+   "metal": {
+    "max_abs_prob_diff_vs_golden": 1.3341522531185035e-07,
+    "seconds": 0.006342459004372358,
+    "n_overflow_docs": 0,
+    "max_abs_prob_diff_vs_cpu_here": 1.3341522531185035e-07,
+    "passed": true
+   }
+  }
+ ],
+ "bench": {},
+ "passed": true
+}

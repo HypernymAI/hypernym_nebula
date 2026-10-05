@@ -1,0 +1,37 @@
+{
+ "C": 10.0,
+ "class_id": 8,
+ "f1_dev": 0.5586592178770949,
+ "f1_threshold": 0.29156236122652285,
+ "feature_spec_sha": "1931015b0b0df3c00aa49e655cc574dc030d38619dbe49fa287aa913b5d74b63",
+ "fields": [
+  "pilot",
+  "reply"
+ ],
+ "head": "H08_S6",
+ "layout": "[2^18 hashed][n_extras][regex strata.fires][bias]",
+ "leakage_gate": {
+  "hashed_cols_present": 231611,
+  "hashed_cols_removed": 91340,
+  "min_sessions": 3,
+  "names_removed": {
+   "count": 20,
+   "sha256": "4d555950b32398b924b08798e1a1c664ef158201200f5414c86ca109fe6a655a"
+  },
+  "nonzero_hashed_weights": 140280
+ },
+ "n": 6339,
+ "n_extras": 4,
+ "oof_codebase_auc": 0.9448902782854851,
+ "platt_a": 0.8413238220559092,
+ "platt_b": -1.1363649333216705,
+ "pos": 271,
+ "r90": 0.036503966910054725,
+ "r90_dev_flag_rate": 0.1670733691231495,
+ "r90_dev_precision": 0.23661148977604674,
+ "r90_dev_recall": 0.9033457249070632,
+ "section": "S6",
+ "spec": "V2",
+ "trained_at": 1790529504.4230988,
+ "weights_sha256": "68ded6f01172ccf07f7d348f510ade7b8407fbb993e7b05528c88b7f233b5ccb"
+}

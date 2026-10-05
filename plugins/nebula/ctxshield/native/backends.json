@@ -1,0 +1,29 @@
+{
+ "format": "ctxshield.backends",
+ "version": 1,
+ "note": "Build doc §9.2.6 / §9.4 / T12. The Python loader (ctxshield/features.py check_backend) refuses CUDA while backends.cuda.verified is false unless SHIELD_CUDA_UNVERIFIED_OK=true. Only a passing native/cuda/run_on_l4.sh result may set it true (logged in the build doc §14).",
+ "backends": {
+  "cpu": {
+   "verified": true,
+   "status": "parity EXACT vs features_ref on 5,000 frozen units (build doc S3, S8)"
+  },
+  "metal": {
+   "verified": true,
+   "status": "parity vs CPU on 5,000 frozen units x V1/V2 x hpad 4/16: max |dp| 3.08e-07 (<= 1e-5), 0 overflow docs; golden_v1 (2,000 synthetic units x 2 specs): max |dp| 2.98e-07, 153 overflow docs via score_dev (build doc S8, 2026-09-27)",
+   "device": "Apple M1 Ultra (48-core GPU)",
+   "crossover_batch": {
+    "V1": 2048,
+    "V2": 4096
+   },
+   "crossover_note": "batch sizes from which Metal beats all-P-core CPU at every larger measured size (bench/results/metal.json); below it use CPU",
+   "kernel": "score_tg_7600 (512 threads/threadgroup) + score_dev overflow; 16,384-doc double-buffered chunks"
+  },
+  "cuda": {
+   "verified": false,
+   "status": "UNTESTED — no NVIDIA device",
+   "target": "sm_89 (NVIDIA L4, GCP g2-standard-8)",
+   "golden": "golden/golden_v1.bin",
+   "runner": "cuda/run_on_l4.sh"
+  }
+ }
+}
