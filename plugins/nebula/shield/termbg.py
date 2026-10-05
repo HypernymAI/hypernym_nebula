@@ -3,10 +3,20 @@ The REAL background colour of the terminal tab the status line is drawn in (buil
 alpha-blended against what is actually behind it (terminals draw text opaque; there is no per-glyph alpha).
 
 Apple Terminal only (TERM_PROGRAM == Apple_Terminal): walk up from this process to the first ancestor with a tty (Claude
-Code's), then AppleScript: the tab of Terminal whose tty is that one → `background color` (16-bit RGB) + profile name.
-Cached per tty in <cache> for MAX_AGE_S (the AppleScript round trip is ~0.75 s; the status line refreshes every 1 s).
+Code's), then ask Terminal by AppleScript for the tab with that tty → `background color` (16-bit RGB) + profile name.
 Anything else → RuntimeError with the reason; the status line then draws the logo fully OPAQUE (alpha 1: nothing is
 blended, so no colour is ever guessed).
+
+GENTLE WITH TERMINAL (2026-10-05, after Apple Terminal 2.14 hard-crashed four times — EXC_BAD_ACCESS on its main thread
+in aeProcessAppleEvent → _AppleEventsLookupApplicationPort, i.e. while looking up the SENDER of an incoming AppleEvent;
+the old code asked every ~1 s from every session, never cached a failure, and killed osascript at 5 s mid-request):
+  - ASK RARELY: an answer is kept OK_AGE_S, a failure FAIL_AGE_S (failures are cached too), per tty, shared by every
+    process through <cache>.
+  - NEVER KILL A SENDER MID-REQUEST, NEVER WAIT: osascript is started DETACHED (its own session) writing its answer to
+    a file beside the cache; this refresh returns at once (the last known colour, or opaque) and a later refresh reads
+    the answer. At most one question per tty is in flight; one unanswered after ASK_WAIT_S counts as a failure.
+  - ONE BAD WINDOW CANNOT SINK THE LOOKUP: every window is read inside its own `try` (a Terminal window that cannot
+    be queried used to fail the whole walk, which was then retried forever).
 NO .get(). Imports at top.
 """
 import json
@@ -16,13 +26,16 @@ import time
 from pathlib import Path
 from typing import Tuple
 
-MAX_AGE_S = 300
-OSA_TIMEOUT_S = 5
+OK_AGE_S = 1800                 # a known colour is reused for 30 min (a profile change shows within that)
+FAIL_AGE_S = 600                # a failed lookup is not retried for 10 min
+ASK_WAIT_S = 120                # a question unanswered this long counts as a failure
 SCRIPT = '''tell application "Terminal"
 repeat with w in windows
+try
 repeat with t in tabs of w
 if tty of t is "{tty}" then return {{background color of t, name of current settings of t}}
 end repeat
+end try
 end repeat
 return "no-tab"
 end tell'''
@@ -49,21 +62,85 @@ def background(cache: Path) -> Tuple[int, int, int]:
     if prog != 'Apple_Terminal':
         raise RuntimeError(f"auto background supports Apple Terminal only (TERM_PROGRAM={prog}); set brand.bg to [r,g,b]")
     tty = controlling_tty()
+    now = time.time()
     data = _load(cache)
-    if tty in data and time.time() - data[tty]['at'] < MAX_AGE_S:
-        return tuple(data[tty]['rgb'])
-    r = subprocess.run(['osascript', '-e', SCRIPT.format(tty=tty)], capture_output=True, text=True,
-                       timeout=OSA_TIMEOUT_S)
-    if r.returncode != 0:
-        raise RuntimeError(f"Terminal did not answer (osascript exit {r.returncode}): {r.stderr.strip()[:120]}")
-    out = r.stdout.strip()
-    if out == 'no-tab':
-        raise RuntimeError(f"no Terminal tab has tty {tty}")
-    vals = [v.strip() for v in out.split(',')]
-    rgb = tuple(int(round(int(v) / 257)) for v in vals[:3])
-    data[tty] = {'rgb': list(rgb), 'profile': ','.join(vals[3:]), 'at': time.time()}
-    _save(cache, data)
-    return rgb
+    entry = data[tty] if tty in data else {}
+    answer = _answer_path(cache, tty)
+    if 'asked' in entry:                                        # a question is out: has Terminal answered?
+        got = _collect(answer, entry['pid'])
+        if got is not None:
+            entry = _record(got, now, entry)
+            data[tty] = entry
+            _save(cache, data)
+        elif now - entry['asked'] >= ASK_WAIT_S:
+            entry = dict(entry, failed=f"Terminal did not answer within {ASK_WAIT_S} s", at=now)
+            del entry['asked'], entry['pid']
+            data[tty] = entry
+            _save(cache, data)
+    fresh_ok = 'rgb' in entry and 'failed' not in entry and now - entry['at'] < OK_AGE_S
+    fresh_fail = 'failed' in entry and now - entry['at'] < FAIL_AGE_S
+    if 'asked' not in entry and not fresh_ok and not fresh_fail:
+        entry = dict(entry, asked=now, pid=_ask(tty, answer))   # detached; answered on a later refresh
+        data[tty] = entry
+        _save(cache, data)
+    if 'rgb' in entry and 'failed' not in entry:
+        return tuple(entry['rgb'])                              # known colour (also while a refresh is out)
+    if 'failed' in entry:
+        raise RuntimeError(entry['failed'])
+    raise RuntimeError("asking Terminal for this tab's background (answer on a later refresh)")
+
+
+def _answer_path(cache: Path, tty: str) -> Path:
+    return cache.with_name(f"{cache.name}.{tty.replace('/dev/', '')}.answer")
+
+
+def _ask(tty: str, answer: Path) -> int:
+    """Start osascript DETACHED (own session, never waited on, never killed) → its answer lands in `answer`."""
+    for p in (answer, answer.with_suffix('.err')):
+        if p.exists():
+            p.unlink()
+    with open(answer, 'w') as out, open(answer.with_suffix('.err'), 'w') as err:
+        proc = subprocess.Popen(['osascript', '-e', SCRIPT.format(tty=tty)], stdin=subprocess.DEVNULL, stdout=out,
+                                stderr=err, start_new_session=True)
+    return proc.pid
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _collect(answer: Path, pid: int):
+    """('ok', stdout) / ('err', stderr) once osascript has finished, else None (still asking)."""
+    out = answer.read_text() if answer.exists() else ''
+    if out.strip() and out.endswith('\n'):
+        done = ('ok', out.strip())
+    elif _alive(pid):
+        return None
+    else:
+        err = answer.with_suffix('.err')
+        done = ('err', err.read_text().strip() if err.exists() else 'no answer')
+    for p in (answer, answer.with_suffix('.err')):
+        if p.exists():
+            p.unlink()
+    return done
+
+
+def _record(got, now: float, old: dict) -> dict:
+    kind, text = got
+    if kind == 'err':
+        return {'failed': f"Terminal did not answer: {text[:120]}", 'at': now}
+    if text == 'no-tab':
+        return {'failed': "no Terminal tab has this tty", 'at': now}
+    vals = [v.strip() for v in text.split(',')]
+    if len(vals) < 3 or not all(v.isdigit() for v in vals[:3]):
+        return {'failed': f"unexpected answer from Terminal: {text[:80]}", 'at': now}
+    return {'rgb': [int(round(int(v) / 257)) for v in vals[:3]], 'profile': ','.join(vals[3:]), 'at': now}
 
 
 def _load(cache: Path) -> dict:
