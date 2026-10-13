@@ -5,6 +5,9 @@ the Hypernym logo code it draws (SHARED below: brand.py, termbg.py, brand_assets
   nebula  plugin/shield/
   hypernym      skills/hypernym/scripts/
 Standard library only. No network. It never imports either plugin; it only RUNS their status-line programs.
+TWO MARKETPLACES, ONE BAR (2026-10-12): the shield's home is hypernym-nebula (public); the Zephyr connector's home is
+hypernym-nebula-pro (select clients) — so a Nebula user ADDS Pro, nothing uninstalled. Either plugin is found under
+EITHER name (installs made before the split keep working).
 
     nebula_statusline.py compose             the status line itself (stdin: Claude Code's status-line JSON)
     nebula_statusline.py refresh             SessionStart of either plugin: copy this file + write the launcher
@@ -39,8 +42,10 @@ from pathlib import Path
 from brand import icon, logo, wings_icon
 from termbg import background
 
-VERSION = 10                                   # a newer copy is never overwritten by an older one (refresh)
-MARKETPLACE = 'hypernym-nebula'
+VERSION = 11                                   # a newer copy is never overwritten by an older one (refresh)
+MARKETPLACE = 'hypernym-nebula'                # the shield's home (public)
+MARKETPLACES = ('hypernym-nebula', 'hypernym-nebula-pro')    # either plugin is found under either name
+HOME = {'nebula': 'hypernym-nebula', 'hypernym': 'hypernym-nebula-pro'}   # where each one is installed FROM
 ORDER = ('nebula', 'hypernym')          # row order: shield rows, then the Zephyr line
 NICE = {'nebula': 'nebula (local offline shield)', 'hypernym': 'hypernym (Zephyr connector)'}
 HOME_DIR = Path.home() / '.hypernym-nebula'
@@ -92,16 +97,23 @@ def enabled(key: str, project_dir: str) -> bool:
     return False
 
 
+def keys(name: str) -> list:
+    """The registry keys <name> can be installed under: one per marketplace name."""
+    return [f'{name}@{m}' for m in MARKETPLACES]
+
+
 def installed(name: str, project_dir: str):
-    """(install path, enabled) of <name>@hypernym-nebula for this project, or None when it is not installed."""
+    """(install path, enabled, key) of <name> from either marketplace for this project, or None when not installed."""
     reg = load_json(config_dir() / 'plugins' / 'installed_plugins.json')
-    key = f'{name}@{MARKETPLACE}'
-    if 'plugins' not in reg or key not in reg['plugins']:
+    if 'plugins' not in reg:
         return None
-    for entry in reg['plugins'][key]:
-        if entry['scope'] == 'user' or ('projectPath' in entry and project_dir
-                                        and Path(entry['projectPath']).resolve() == Path(project_dir).resolve()):
-            return Path(entry['installPath']), enabled(key, project_dir)
+    for key in keys(name):
+        if key not in reg['plugins']:
+            continue
+        for entry in reg['plugins'][key]:
+            if entry['scope'] == 'user' or ('projectPath' in entry and project_dir
+                                            and Path(entry['projectPath']).resolve() == Path(project_dir).resolve()):
+                return Path(entry['installPath']), enabled(key, project_dir), key
     return None
 
 
@@ -139,10 +151,11 @@ def compose(event: str) -> list:
         if found is not None and found[1]:
             active.append((name, found[0]))
     if not active:
-        off = [n for n in ORDER if installed(n, proj) is not None]
+        off = [installed(n, proj) for n in ORDER]
+        off = [(n, f[2]) for n, f in zip(ORDER, off) if f is not None]
         if off:
-            return [f"\x1b[2mhypernym-nebula: {' and '.join(off)} installed but disabled — "
-                    f"claude plugin enable {off[0]}@{MARKETPLACE}\x1b[0m"]
+            return [f"\x1b[2mhypernym-nebula: {' and '.join(n for n, _k in off)} installed but disabled — "
+                    f"claude plugin enable {off[0][1]}\x1b[0m"]
         return retire()
     out, procs = {}, {}
     for name, root in active:
@@ -181,7 +194,7 @@ def compose(event: str) -> list:
 def registered_anywhere() -> bool:
     """Is either plugin in Claude Code's registry in ANY scope (user, or another project)?"""
     reg = load_json(config_dir() / 'plugins' / 'installed_plugins.json')
-    return 'plugins' in reg and any(f'{n}@{MARKETPLACE}' in reg['plugins'] for n in ORDER)
+    return 'plugins' in reg and any(k in reg['plugins'] for n in ORDER for k in keys(n))
 
 
 def retire() -> list:
@@ -329,11 +342,11 @@ def arm_intro() -> None:
     reg = load_json(config_dir() / 'plugins' / 'installed_plugins.json')
     if 'plugins' not in reg:
         return
-    keys = [json.dumps(e, sort_keys=True) for n in ORDER if f'{n}@{MARKETPLACE}' in reg['plugins']
-            for e in reg['plugins'][f'{n}@{MARKETPLACE}']]
+    entries = [json.dumps(e, sort_keys=True) for n in ORDER for k in keys(n) if k in reg['plugins']
+               for e in reg['plugins'][k]]
     seen_file = HOME_DIR / 'intro_seen.json'
     seen = json.loads(seen_file.read_text()) if seen_file.exists() else []
-    new = [k for k in keys if k not in seen]
+    new = [k for k in entries if k not in seen]
     if not new:
         return
     HOME_DIR.mkdir(parents=True, exist_ok=True)
@@ -391,11 +404,11 @@ def remove() -> int:
 def peers(me: str) -> str:
     other = [n for n in ORDER if n != me][0]
     found = installed(other, os.getcwd())
-    line = f"claude plugin install {other}@{MARKETPLACE}   (or in Claude Code: /plugin install {other}@{MARKETPLACE})"
+    line = f"claude plugin install {other}@{HOME[other]}   (or in Claude Code: /plugin install {other}@{HOME[other]})"
     if found is None:
         return f"{NICE[other]}: not installed — {line}"
     if not found[1]:
-        return f"{NICE[other]}: installed but disabled — claude plugin enable {other}@{MARKETPLACE}"
+        return f"{NICE[other]}: installed but disabled — claude plugin enable {found[2]}"
     return f"{NICE[other]}: installed — its line shares this status bar"
 
 
