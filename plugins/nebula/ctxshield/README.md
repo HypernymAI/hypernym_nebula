@@ -15,7 +15,8 @@ Build plan, provenance and every number: ClaudeStorm
 ## Layout
 ```
 ctxshield/      dataset.py (dataset contract) · shape.py (payload cap helpers, byte-exact)
-native/         C++ / Metal / CUDA  (step 3+)
+native/         C++ / Metal / CUDA  (step 3+); native/static_build/ = the fully static Linux scorer
+                (ctxshield/static/ctxshield-scorer-linux-*, spoken to by ctxshield/_native_static.py)
 models/         trained weights + manifest (shipped only after the leakage gate)
 tests/
 ```

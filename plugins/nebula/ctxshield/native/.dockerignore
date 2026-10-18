@@ -1,0 +1,5 @@
+build-*
+static_build/out
+bench/results
+golden
+cuda

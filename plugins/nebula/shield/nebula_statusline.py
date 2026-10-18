@@ -42,7 +42,7 @@ from pathlib import Path
 from brand import icon, logo, wings_icon
 from termbg import background
 
-VERSION = 11                                   # a newer copy is never overwritten by an older one (refresh)
+VERSION = 12                                   # a newer copy is never overwritten by an older one (refresh)
 MARKETPLACE = 'hypernym-nebula'                # the shield's home (public)
 MARKETPLACES = ('hypernym-nebula', 'hypernym-nebula-pro')    # either plugin is found under either name
 HOME = {'nebula': 'hypernym-nebula', 'hypernym': 'hypernym-nebula-pro'}   # where each one is installed FROM
@@ -273,10 +273,15 @@ def refresh() -> None:
                 tmp = dst.with_name(f'{dst.name}.{os.getpid()}.tmp')      # own temp file: no write race
                 shutil.copyfile(src, tmp)
                 tmp.replace(dst)
+    if version_of(COPY) > VERSION:
+        return                                    # a newer plugin owns the launcher too
+    # The interpreter that runs this refresh, by its real path (nebula: its own uv-managed Python, which outlives
+    # plugin updates) — NOT `python3` from PATH: minimal Linux (Alpine, Debian slim, containers) has none.
+    py = os.path.realpath(sys.executable)
     text = ("#!/bin/sh\n"
             "# hypernym-nebula status line — written by the nebula / hypernym plugins on session start.\n"
             "# Shows whichever of the two is installed (read from Claude Code's plugin registry every refresh).\n"
-            f'exec python3 "{COPY}" compose\n')
+            f'exec "{py}" "{COPY}" compose\n')
     if not LAUNCHER.exists() or LAUNCHER.read_text() != text:
         tmp = LAUNCHER.with_name(f'{LAUNCHER.name}.{os.getpid()}.tmp')
         tmp.write_text(text)

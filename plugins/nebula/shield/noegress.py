@@ -7,7 +7,10 @@ network operation the interpreter can perform, and on launching any program exce
   - blocked: socket connect / bind / sendto / sendmsg / name resolution, urllib requests, http/ftp/smtp/imap/poplib/
     telnetlib connections, webbrowser, os.system, os.exec*/spawn*/posix_spawn, and subprocess of anything not allowed
   - allowed programs: `ps` and `osascript` (terminal-tab background colour, termbg.py — local IPC with Terminal.app,
-    no network) and this same Python interpreter (the badge's catch-up sync)
+    no network), this same Python interpreter (the badge's catch-up sync), and the plugin's OWN bundled native
+    scorer `ctxshield/ctxshield/static/ctxshield-scorer-linux-<cpu>` (Linux: the static C++ kernel, spoken to over
+    stdin/stdout — it opens no socket and no file). Only those exact files: a same-named program anywhere else
+    (or CTXSHIELD_SCORER_BIN pointing elsewhere) is blocked.
   - the MCP server talks to Claude Code over stdin/stdout pipes — no socket is opened
 
 tests/test_privacy.py proves it: every entry point imports this first (static check), no network module is imported
@@ -25,6 +28,9 @@ BLOCKED_EVENTS = frozenset({
 })
 ALLOWED_PROGRAMS = frozenset({'ps', 'osascript'})
 _SELF = os.path.realpath(sys.executable)
+_SCORER_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'ctxshield', 'ctxshield',
+                           'static')
+_SCORERS = frozenset(os.path.join(_SCORER_DIR, f'ctxshield-scorer-linux-{cpu}') for cpu in ('x86_64', 'aarch64'))
 
 
 class EgressBlocked(PermissionError):
@@ -38,6 +44,8 @@ def _allowed_program(exe) -> bool:
         return False
     if os.path.realpath(exe) == _SELF:
         return True
+    if os.path.realpath(exe) in _SCORERS:
+        return True
     base = os.path.basename(exe)
     return base in ALLOWED_PROGRAMS and (exe == base or exe in (f'/bin/{base}', f'/usr/bin/{base}'))
 
@@ -49,7 +57,7 @@ def _hook(event: str, args) -> None:
         exe, argv = args[0], args[1]
         prog = exe if exe is not None else (argv[0] if isinstance(argv, (list, tuple)) and argv else argv)
         if not _allowed_program(prog):
-            raise EgressBlocked(f"nebula no-egress: launching {prog!r} is blocked (allowed: ps, osascript, itself)")
+            raise EgressBlocked(f"nebula no-egress: launching {prog!r} is blocked (allowed: ps, osascript, itself, the bundled scorer)")
 
 
 if not getattr(sys, '_ctxshield_noegress', False):

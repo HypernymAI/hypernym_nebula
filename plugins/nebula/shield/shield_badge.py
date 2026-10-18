@@ -12,7 +12,7 @@ Code process — observed 07:08–07:56 on 2026-09-27: the badge showed one stal
 lie by staleness. Each refresh therefore checks, cheaply: (1) has the last turn ENDED (last user/assistant/system record
 is system turn_duration / stop_hook_summary), and (2) does the transcript hold user/assistant records after the DB's
 checkpoint for it? Both → start sync_one.py detached (one lock per session) and SAY so on the badge; a crashed sync is
-shown as failed (traceback in <db dir>/sync.log), never hidden. While a turn is running the badge marks the shown
+shown as failed (traceback in <db dir>/sync.log, rotated to sync.log.1 past 256 KB), never hidden. While a turn is running the badge marks the shown
 score as the previous reply's (⋯).
 
     echo '{"session_id": "…"}' | <python> shield_badge.py [--config config.json] [--row]
@@ -45,6 +45,7 @@ RESET, BLINK, BOLD, DIM = '\x1b[0m', '\x1b[5m', '\x1b[1m', '\x1b[2m'
 DELTA_MAX = 4 * 1024 * 1024                            # a larger unrecorded tail is unrecorded without parsing it
 SYNC_RUNNING_S = 120                                   # a lock younger than this = a sync in flight
 SYNC_RETRY_S = 300                                     # a lock older than this = failed sync; retried after this
+SYNC_LOG_MAX = 256 * 1024                              # sync.log rotates to sync.log.1 past this: ≤ ~2× on disk
 
 
 def unrecorded(c: sqlite3.Connection, jsonl: Path) -> bool:
@@ -87,7 +88,12 @@ def catch_up(config: str, jsonl: Path, state: Path) -> str:
     fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     os.write(fd, f"{time.time()}\n".encode())
     os.close(fd)
-    log = open(state / 'sync.log', 'a')
+    path = state / 'sync.log'
+    if path.exists() and path.stat().st_size > SYNC_LOG_MAX:
+        # Rotate, never truncate: a sync still running keeps appending through its open handle (now sync.log.1),
+        # so no traceback is lost. os.replace is atomic; a racing badge at worst rotates an already-small file.
+        os.replace(path, state / 'sync.log.1')
+    log = open(path, 'a')
     subprocess.Popen([sys.executable, str(HERE / 'sync_one.py'), '--config', config, '--transcript', str(jsonl),
                       '--lock', str(lock)], stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                      start_new_session=True, cwd=str(HERE))
