@@ -2,6 +2,11 @@
 Native featurizer / scorer front door. The native module is REQUIRED: a missing build is an
 ImportError at import time (no Python or numba fallback — build doc §9.6).
 
+Which native core: on Linux the bundled, fully static `ctxshield-scorer` program over a pipe
+(_native_static — one binary per CPU runs on every distribution, glibc or musl/Alpine); elsewhere the
+pybind11 module `_native`. Same kernel, same API. CTXSHIELD_SCORER=static selects the pipe client on any
+platform (development: set CTXSHIELD_SCORER_BIN to a locally built scorer).
+
     featurize(field_names, docs, spec)                               -> (indptr, indices, data, extras)
     score_logits(field_names, docs, spec, W, We, b, backend='cpu')   -> float32[n, hpad]
     make_scorer(backend, field_names, spec, W, We, b)                -> resident-weights scorer
@@ -17,13 +22,20 @@ NO .get(). No ClaudeStorm imports.
 import json
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 import numpy as np
 
-from ctxshield import _native
 from ctxshield import spec as S
+
+USE_STATIC_SCORER = sys.platform.startswith('linux') or (
+    'CTXSHIELD_SCORER' in os.environ and os.environ['CTXSHIELD_SCORER'] == 'static')
+if USE_STATIC_SCORER:
+    from ctxshield import _native_static as _native
+else:
+    from ctxshield import _native
 
 _SURR = re.compile('[\ud800-\udfff]')
 BACKENDS = ('cpu', 'metal', 'cuda')
@@ -93,4 +105,5 @@ def score_logits(field_names: List[str], docs: List[Dict[str, str]], spec: str, 
 
 def native_info() -> Dict[str, str]:
     return {'utf8proc': _native.utf8proc_version(), 'unicode': _native.unicode_version(),
-            'dim_bits': str(_native.DIM_BITS)}
+            'dim_bits': str(_native.DIM_BITS),
+            'kernel': 'ctxshield-scorer (static, pipe)' if USE_STATIC_SCORER else 'ctxshield._native (pybind11)'}

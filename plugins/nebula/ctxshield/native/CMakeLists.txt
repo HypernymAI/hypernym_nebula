@@ -8,6 +8,10 @@ else()
   option(SHIELD_METAL "Build the Metal backend (Apple)" OFF)
 endif()
 option(SHIELD_CUDA "Build the CUDA backend (UNTESTED until an L4 run)" OFF)
+# The pybind11 module (_native) needs Python headers; the standalone scorer (ctxshield-scorer) does not.
+# static_build/ builds the scorer alone (SHIELD_PYTHON=OFF, SHIELD_STATIC=ON) inside Alpine.
+option(SHIELD_PYTHON "Build the pybind11 module ctxshield._native" ON)
+option(SHIELD_STATIC "Link ctxshield-scorer fully static (Linux only: no libc / libstdc++ at run time)" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -15,8 +19,10 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-set(PYBIND11_FINDPYTHON ON)
-find_package(pybind11 CONFIG REQUIRED)
+if(SHIELD_PYTHON)
+  set(PYBIND11_FINDPYTHON ON)
+  find_package(pybind11 CONFIG REQUIRED)
+endif()
 
 add_library(utf8proc STATIC third_party/utf8proc/utf8proc.c)   # includes utf8proc_data.c
 target_compile_definitions(utf8proc PUBLIC UTF8PROC_STATIC)
@@ -58,9 +64,6 @@ if(SHIELD_CUDA)
   list(APPEND SHIELD_SOURCES src/cuda/shield.cu src/cuda/cuda_backend.cpp)
 endif()
 
-pybind11_add_module(_native ${SHIELD_SOURCES})
-target_include_directories(_native PRIVATE include src ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(_native PRIVATE utf8proc)
 
 # CPU baseline. SHIELD_TARGET_ARCH names the machine the module is FOR (set by tools/build_native_all.sh; one
 # module per target). Each baseline runs on every CPU of that family — never -march=native in a shipped build
@@ -82,8 +85,32 @@ elseif(SHIELD_TARGET_ARCH MATCHES "^(x86_64|AMD64|amd64)$")
 else()
   message(FATAL_ERROR "unsupported SHIELD_TARGET_ARCH=${SHIELD_TARGET_ARCH}")
 endif()
-target_compile_options(_native PRIVATE $<$<COMPILE_LANGUAGE:CXX,OBJCXX>:${SHIELD_ARCH_FLAGS} -Wall -Wextra>)
 target_compile_options(utf8proc PRIVATE -O3)
+
+# Standalone scorer: CPU backend only, speaks the CXS1 pipe protocol (scorer/scorer_main.cpp).
+add_executable(ctxshield-scorer scorer/scorer_main.cpp src/featurize.cpp src/score.cpp src/c_abi.cpp)
+target_include_directories(ctxshield-scorer PRIVATE include src)
+target_link_libraries(ctxshield-scorer PRIVATE utf8proc)
+target_compile_options(ctxshield-scorer PRIVATE ${SHIELD_ARCH_FLAGS} -Wall -Wextra)
+if(SHIELD_STATIC)
+  if(APPLE)
+    message(FATAL_ERROR "SHIELD_STATIC=ON is Linux only (macOS has no static libc)")
+  endif()
+  set_target_properties(ctxshield-scorer PROPERTIES POSITION_INDEPENDENT_CODE OFF)
+  target_link_options(ctxshield-scorer PRIVATE -static -no-pie -s)
+endif()
+
+if(NOT SHIELD_PYTHON)
+  if(SHIELD_METAL OR SHIELD_CUDA)
+    message(FATAL_ERROR "SHIELD_METAL / SHIELD_CUDA need SHIELD_PYTHON=ON (the scorer is CPU only)")
+  endif()
+  return()
+endif()
+
+pybind11_add_module(_native ${SHIELD_SOURCES})
+target_include_directories(_native PRIVATE include src ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(_native PRIVATE utf8proc)
+target_compile_options(_native PRIVATE $<$<COMPILE_LANGUAGE:CXX,OBJCXX>:${SHIELD_ARCH_FLAGS} -Wall -Wextra>)
 
 if(SHIELD_METAL)
   target_compile_definitions(_native PRIVATE SHIELD_HAVE_METAL=1)

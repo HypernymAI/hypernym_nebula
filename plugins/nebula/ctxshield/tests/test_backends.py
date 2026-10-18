@@ -19,8 +19,8 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ctxshield import _native                                            # noqa: E402
 from ctxshield import features as F                                      # noqa: E402
+from ctxshield.features import _native                                   # noqa: E402  (pybind11 or static scorer)
 from ctxshield import parity as P                                        # noqa: E402
 from ctxshield import spec as S                                          # noqa: E402
 

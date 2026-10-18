@@ -128,7 +128,7 @@ def resolve_config(explicit: Optional[str]) -> Path:
         if 'sources_sha' in cur and cur['sources_sha'] == _sources_sha():
             return EFFECTIVE
     cfg = build_effective()
-    tmp = EFFECTIVE.with_suffix('.tmp')
+    tmp = EFFECTIVE.with_name(f'{EFFECTIVE.name}.{os.getpid()}.tmp')   # own temp file: no write race
     tmp.write_text(json.dumps(cfg, indent=1, sort_keys=True) + '\n')
     tmp.replace(EFFECTIVE)
     return EFFECTIVE
@@ -148,7 +148,7 @@ def set_soliton(cfg: Dict, on: bool, granted: list) -> None:
     """granted = the permission rules soliton itself added (customize.py), so turning it off removes exactly those."""
     f = soliton_file(cfg)
     f.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    tmp = f.with_suffix('.tmp')
+    tmp = f.with_name(f'{f.name}.{os.getpid()}.tmp')   # own temp file: no write race
     tmp.write_text(json.dumps({'on': on, 'granted': granted}) + '\n')
     tmp.replace(f)
 

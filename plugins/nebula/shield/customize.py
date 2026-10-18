@@ -12,6 +12,7 @@ NO .get(). Imports at top.
 """
 import noegress                                   # noqa: F401 — FIRST: the no-network guarantee (noegress.py)
 import json
+import os
 import sys
 
 import nebula_statusline
@@ -53,7 +54,7 @@ def soliton_permissions(grant: bool, granted_before: list) -> list:
 def save(u: dict) -> None:
     _validate_user(u)
     USER_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = USER_SETTINGS.with_suffix('.tmp')
+    tmp = USER_SETTINGS.with_name(f'{USER_SETTINGS.name}.{os.getpid()}.tmp')   # own temp file: no write race
     tmp.write_text(json.dumps(u, indent=1, sort_keys=True) + '\n')
     tmp.replace(USER_SETTINGS)
 
