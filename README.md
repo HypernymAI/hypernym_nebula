@@ -28,7 +28,8 @@ replaces it, backing up `settings.json` first). Check with `claude plugin list` 
 - **Claude Code.**
 - **uv** (https://docs.astral.sh/uv/). Nebula builds its own Python environment with it on the first run; the one-liner
   above installs it if it's missing.
-- **macOS 11+** (Apple Silicon or Intel) or **Linux** (x86-64 or ARM64, glibc 2.28+). On Windows, use WSL.
+- **macOS 11+** (Apple Silicon or Intel) or **any Linux** on x86-64 or ARM64: glibc or musl (Alpine), old or new.
+  On Linux the scorer is one fully static program per CPU, so it needs nothing from the system. On Windows, use WSL.
 
 ## Install
 

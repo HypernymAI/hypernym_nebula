@@ -1,0 +1,25 @@
+# Fully static ctxshield-scorer for one Linux CPU, built on Alpine (musl + libstdc++ linked in).
+# Context: plugins/nebula/ctxshield/native   (the Makefile next to this file drives it)
+#   docker buildx build --platform linux/amd64 --build-arg TARGET_ARCH=x86_64 \
+#     -f static_build/Dockerfile.build --output type=local,dest=static_build/out ..
+# The build FAILS unless the result has no dynamic section (no NEEDED libraries) and no program interpreter.
+FROM alpine:3.20 AS build
+RUN apk add --no-cache build-base cmake binutils
+WORKDIR /src
+COPY CMakeLists.txt ./
+COPY include include
+COPY src src
+COPY scorer scorer
+COPY third_party third_party
+ARG TARGET_ARCH
+RUN test -n "$TARGET_ARCH" \
+ && cmake -S . -B /build -DCMAKE_BUILD_TYPE=Release -DSHIELD_PYTHON=OFF -DSHIELD_METAL=OFF -DSHIELD_CUDA=OFF \
+          -DSHIELD_STATIC=ON -DSHIELD_TARGET_ARCH="$TARGET_ARCH" \
+ && cmake --build /build -j \
+ && OUT="/out/ctxshield-scorer-linux-$TARGET_ARCH" && mkdir -p /out && cp /build/ctxshield-scorer "$OUT" \
+ && if readelf -d "$OUT" 2>/dev/null | grep -q NEEDED; then readelf -d "$OUT"; echo "NOT STATIC: NEEDED entries" >&2; exit 1; fi \
+ && if readelf -l "$OUT" | grep -q INTERP; then echo "NOT STATIC: has a program interpreter" >&2; exit 1; fi \
+ && "$OUT" --version
+
+FROM scratch
+COPY --from=build /out/ /

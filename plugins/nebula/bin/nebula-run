@@ -5,9 +5,10 @@
 # The environment is created by uv on first use (Python 3.13 + numpy, pinned by uv.lock) inside this plugin directory.
 # That one-time install is the ONLY time anything is downloaded, and it downloads packages — never your data.
 # Everything after that runs offline under noegress.py.
-# Runs on: macOS 11+ (Apple Silicon or Intel) and Linux x86-64 / ARM64 with glibc 2.28+ — one prebuilt native scorer
-# per platform in ctxshield/ (native/PLATFORMS.json). When nebula CANNOT run here (Windows — use WSL —, Alpine/musl,
-# older macOS or glibc, another CPU, or no uv), the status
+# Runs on: macOS 11+ (Apple Silicon or Intel) and EVERY Linux on x86-64 / ARM64 — glibc or musl (Alpine), old or new:
+# on Linux the native scorer is a fully static program (ctxshield/ctxshield/static/, native/static_build/) that needs
+# nothing from the system. One prebuilt scorer per platform (native/PLATFORMS.json). When nebula CANNOT run here
+# (Windows — use WSL —, older macOS, another CPU, or no uv), the status
 # line and the /nebula: commands say why (exit 1 + the reason); the HOOKS stay silent (exit 0) so Claude Code does
 # not show an error after every turn. The reason is still visible every second in the status line.
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -29,14 +30,14 @@ case "$OS" in
       cannot "nebula needs macOS 11 or newer (this is $MACV) — the hypernym plugin still works here"
     fi ;;
   Linux)
-    case "$CPU" in x86_64|aarch64|arm64) ;; *) cannot "nebula does not run on Linux $CPU (x86-64 and ARM64 only) — the hypernym plugin still works here" ;; esac
-    GLIBC="$(getconf GNU_LIBC_VERSION 2>/dev/null | awk '{print $2}')"
-    if [ -z "$GLIBC" ]; then
-      cannot "nebula needs a glibc Linux (Alpine/musl is not supported yet) — the hypernym plugin still works here"
-    fi
-    GMAJ="${GLIBC%%.*}"; GMIN="${GLIBC#*.}"; GMIN="${GMIN%%.*}"
-    if [ "$GMAJ" -lt 2 ] || { [ "$GMAJ" -eq 2 ] && [ "$GMIN" -lt 28 ]; }; then
-      cannot "nebula needs glibc 2.28 or newer (this is $GLIBC) — the hypernym plugin still works here"
+    case "$CPU" in
+      x86_64) SCORER_CPU=x86_64 ;;
+      aarch64|arm64) SCORER_CPU=aarch64 ;;
+      *) cannot "nebula does not run on Linux $CPU (x86-64 and ARM64 only) — the hypernym plugin still works here" ;;
+    esac
+    SCORER="$ROOT/ctxshield/ctxshield/static/ctxshield-scorer-linux-$SCORER_CPU"
+    if [ ! -x "$SCORER" ]; then
+      cannot "nebula's native scorer is missing or not executable ($SCORER) — reinstall the plugin"
     fi ;;
   MINGW*|MSYS*|CYGWIN*|Windows*)
     cannot "nebula does not run on Windows yet — run Claude Code in WSL (Linux), where it works; the hypernym plugin still works here" ;;
