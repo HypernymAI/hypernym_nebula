@@ -9,6 +9,7 @@
 #   make test-install   (this host's CPU) the REAL install on clean Alpine: website uv line, Claude Code installer, claude plugin
 #                       marketplace add + install (this tree), then hooks / status line / MCP as installed
 #   make test-install-x86_64 / test-install-aarch64
+#   make reproduce      build twice from scratch (no cache) and require byte-identical binaries
 #   make clean
 #
 # Every image and tool is pinned below; change them here only.
@@ -34,7 +35,7 @@ SCORERS     := $(foreach c,$(CPUS),$(OUT)/ctxshield-scorer-linux-$(c))
 SOURCES     := $(NATIVE)/CMakeLists.txt $(wildcard $(NATIVE)/include/* $(NATIVE)/src/*.cpp $(NATIVE)/src/*.h \
                $(NATIVE)/scorer/* $(NATIVE)/third_party/utf8proc/*) $(HERE)/Dockerfile.build
 
-.PHONY: all build verify install test test-install $(addprefix test-,$(CPUS)) $(addprefix test-install-,$(CPUS)) clean
+.PHONY: all build verify install reproduce test test-install $(addprefix test-,$(CPUS)) $(addprefix test-install-,$(CPUS)) clean
 
 all: build
 build: $(SCORERS)
@@ -76,6 +77,16 @@ $(addprefix test-,$(CPUS)): test-%: install $(OUT)/uv-%    # static pattern: .PH
 	  docker run --rm --platform $(PLATFORM_$*) -v $(PLUGIN):/src:ro -v $(OUT):/tools:ro \
 	    -v $(HERE)/test_in_container.sh:/test.sh:ro $$img sh /test.sh $* || exit 1; \
 	done
+
+reproduce:
+	@for c in $(CPUS); do for n in 1 2; do \
+	  docker buildx build -q --no-cache --platform $$( [ $$c = x86_64 ] && echo $(PLATFORM_x86_64) || echo $(PLATFORM_aarch64) ) \
+	    --build-arg TARGET_ARCH=$$c -f $(HERE)/Dockerfile.build --output type=local,dest=$(OUT)/repro$$n $(NATIVE) >/dev/null || exit 1; \
+	done; \
+	  a=$$(shasum -a 256 $(OUT)/repro1/ctxshield-scorer-linux-$$c | cut -c1-64); b=$$(shasum -a 256 $(OUT)/repro2/ctxshield-scorer-linux-$$c | cut -c1-64); \
+	  s=$$(shasum -a 256 $(OUT)/ctxshield-scorer-linux-$$c 2>/dev/null | cut -c1-64); \
+	  echo "$$c  build1 $$a  build2 $$b  out/ $$s"; [ "$$a" = "$$b" ] || { echo "NOT REPRODUCIBLE: $$c" >&2; exit 1; }; \
+	done; rm -rf $(OUT)/repro1 $(OUT)/repro2; echo reproducible
 
 clean:
 	rm -rf $(OUT)

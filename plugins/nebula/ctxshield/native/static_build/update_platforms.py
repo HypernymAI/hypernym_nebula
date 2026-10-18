@@ -25,7 +25,8 @@ def main() -> None:
         f = static_dir / f'ctxshield-scorer-linux-{cpu}'
         mods[f'static/{f.name}'] = {
             'targets': [f'linux-{cpu}'],
-            'kind': 'fully static executable (musl + libstdc++ linked in), CXS1 pipe protocol',
+            'kind': 'static PIE executable (musl + libstdc++ linked in, ASLR, stack protector, FORTIFY, full RELRO), '
+                    'reproducible build, CXS1 pipe protocol',
             'floor': 'no libc requirement (glibc or musl): nothing is loaded from the system',
             'cpu_baseline': BASELINE[cpu],
             'sha256': hashlib.sha256(f.read_bytes()).hexdigest(),

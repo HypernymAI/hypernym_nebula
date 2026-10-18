@@ -2,9 +2,14 @@
 # Context: plugins/nebula/ctxshield/native   (the Makefile next to this file drives it)
 #   docker buildx build --platform linux/amd64 --build-arg TARGET_ARCH=x86_64 \
 #     -f static_build/Dockerfile.build --output type=local,dest=static_build/out ..
-# The build FAILS unless the result has no dynamic section (no NEEDED libraries) and no program interpreter.
-FROM alpine:3.20 AS build
-RUN apk add --no-cache build-base cmake binutils
+# The build FAILS unless the result is a static PIE: ELF type DYN (position-independent, so ASLR applies), no NEEDED
+# libraries and no program interpreter.
+# REPRODUCIBLE: the base image is pinned by digest and every toolchain package by exact version, so the same source
+# gives byte-identical binaries (make reproduce checks this). To move the toolchain, change these pins on purpose.
+FROM alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc AS build
+RUN apk add --no-cache \
+      gcc=13.2.1_git20240309-r1 g++=13.2.1_git20240309-r1 libstdc++-dev=13.2.1_git20240309-r1 \
+      musl-dev=1.2.5-r3 binutils=2.42-r1 make=4.4.1-r2 cmake=3.29.3-r0 fortify-headers=1.1-r3
 WORKDIR /src
 COPY CMakeLists.txt ./
 COPY include include
@@ -19,6 +24,7 @@ RUN test -n "$TARGET_ARCH" \
  && OUT="/out/ctxshield-scorer-linux-$TARGET_ARCH" && mkdir -p /out && cp /build/ctxshield-scorer "$OUT" \
  && if readelf -d "$OUT" 2>/dev/null | grep -q NEEDED; then readelf -d "$OUT"; echo "NOT STATIC: NEEDED entries" >&2; exit 1; fi \
  && if readelf -l "$OUT" | grep -q INTERP; then echo "NOT STATIC: has a program interpreter" >&2; exit 1; fi \
+ && { readelf -h "$OUT" | grep -q 'Type:.*DYN' || { echo "NOT PIE: ELF type is not DYN (no ASLR)" >&2; exit 1; }; } \
  && "$OUT" --version
 
 FROM scratch

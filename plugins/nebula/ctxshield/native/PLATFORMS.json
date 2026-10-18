@@ -1,7 +1,7 @@
 {
  "format": "ctxshield.platforms",
  "version": 1,
- "built": "20261018_090701",
+ "built": "20261018_101153",
  "python": "3.13 (uv-managed, pinned by pyproject)",
  "backend": "cpu only (no Metal / CUDA in shipped modules)",
  "modules": {
@@ -25,10 +25,10 @@
    "targets": [
     "linux-x86_64"
    ],
-   "kind": "fully static executable (musl + libstdc++ linked in), CXS1 pipe protocol",
+   "kind": "static PIE executable (musl + libstdc++ linked in, ASLR, stack protector, FORTIFY, full RELRO), reproducible build, CXS1 pipe protocol",
    "floor": "no libc requirement (glibc or musl): nothing is loaded from the system",
    "cpu_baseline": "x86-64-v2",
-   "sha256": "328d520396146b293636bf98fc16026c2033e7eafc69c81b47360322f51a5223",
+   "sha256": "e1236755c35a4720f79460b44e7eb28a7b93b0179f12f04828a8b72a2f62da2c",
    "tested": [
     "Alpine 3.20 (musl)",
     "Debian 12 (glibc 2.36)",
@@ -40,10 +40,10 @@
    "targets": [
     "linux-aarch64"
    ],
-   "kind": "fully static executable (musl + libstdc++ linked in), CXS1 pipe protocol",
+   "kind": "static PIE executable (musl + libstdc++ linked in, ASLR, stack protector, FORTIFY, full RELRO), reproducible build, CXS1 pipe protocol",
    "floor": "no libc requirement (glibc or musl): nothing is loaded from the system",
    "cpu_baseline": "armv8-a",
-   "sha256": "80fa4fbd1708150b21a6f3d6c404c87eaad3039a321dc01d1d6285d0148c99aa",
+   "sha256": "d013750666041a514b697cd32423a8584fd9c2d8c9812a49c5473fe7bb3ec0ac",
    "tested": [
     "Alpine 3.20 (musl)",
     "Debian 12 (glibc 2.36)",

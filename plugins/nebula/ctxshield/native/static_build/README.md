@@ -9,7 +9,28 @@ macOS uses the pybind11 module `_native.cpython-313-darwin.so` instead, because 
 
 A Python extension is loaded into the interpreter's process and must share the interpreter's libc. It can't be
 fully static, and a musl build can't load into a glibc Python (or the other way round). A separate program has no
-such tie, so it is linked `-static -no-pie` against musl and libstdc++ and spoken to over a pipe.
+such tie, so it is linked `-static-pie` against musl and libstdc++ and spoken to over a pipe.
+
+## What the binary is (and how to check)
+
+- **Static PIE:** ELF type `DYN`, no `NEEDED` libraries, no `INTERP` (no dynamic loader). It does have a small
+  dynamic section, but that's only used to relocate itself at startup; nothing is loaded from the system. Being
+  position-independent, it loads at a random address each run (ASLR).
+- **Hardened explicitly** (not left to distro defaults): `-fstack-protector-strong`, `-fstack-clash-protection`,
+  `-D_FORTIFY_SOURCE=2` (Alpine `fortify-headers`), full RELRO + `BIND_NOW`, non-executable stack.
+- **No I/O beyond stdin/stdout:** the code opens no file and no socket.
+- **Reproducible:** the base image is pinned by digest and every toolchain package by exact version (in
+  `Dockerfile.build`), and `-ffile-prefix-map` keeps build paths out. The same source gives byte-identical binaries;
+  `make reproduce` builds twice without cache and fails on any difference. To change the toolchain, change the pins
+  on purpose and re-run it.
+- **The build gate fails** unless the result has no `NEEDED`, no `INTERP` and ELF type `DYN`.
+
+```
+readelf -h <bin> | grep Type          # DYN (Position-Independent Executable file)
+readelf -d <bin> | grep NEEDED        # nothing
+readelf -l <bin> | grep INTERP        # nothing
+shasum -a 256 <bin>                   # = PLATFORMS.json, and = a fresh `make` (reproducible)
+```
 
 ## How a score is computed on Linux
 
@@ -81,7 +102,8 @@ runner) to cover ARM64.
 Every image and tool version is pinned at the top of the `Makefile`.
 
 ```
-make                  # build both scorers into out/ (Alpine; fails unless no NEEDED entries and no interpreter)
+make                  # build both scorers into out/ (pinned Alpine; fails unless static PIE: no NEEDED, no INTERP)
+make reproduce        # build twice without cache; fails unless byte-identical
 make verify           # run each scorer bare on alpine, debian 12, ubuntu 18.04 and busybox (no libc at all)
 make install          # copy into ctxshield/static/ (mode 755) and update PLATFORMS.json
 make test             # install, then everything below
@@ -105,7 +127,7 @@ make clean
 
 CMake options used here (`../CMakeLists.txt`):
 - `SHIELD_PYTHON=OFF` skips pybind11 and Python headers.
-- `SHIELD_STATIC=ON` links `-static -no-pie -s` (Linux only).
+- `SHIELD_STATIC=ON` links a hardened `-static-pie` (stripped; Linux only).
 - `SHIELD_TARGET_ARCH` selects the portable baseline: `x86-64-v2` or `armv8-a`.
 
 To build the scorer dynamically on a Mac for development: `cmake -DSHIELD_PYTHON=OFF -DSHIELD_METAL=OFF`, then run
@@ -113,7 +135,7 @@ anything with `CTXSHIELD_SCORER=static CTXSHIELD_SCORER_BIN=<build>/ctxshield-sc
 
 ## When you change something
 
-- **Kernel** (`include/`, `src/`, `third_party/`) or **transport** (`scorer/`): run `make test`, then commit both
+- **Kernel** (`include/`, `src/`, `third_party/`) or **transport** (`scorer/`): run `make test` and `make reproduce`, then commit both
   binaries in `ctxshield/ctxshield/static/` together with `PLATFORMS.json`. The macOS `.so` is rebuilt separately
   (`../build.sh`). Both cores must keep producing identical scores.
 - **The pipe client:** keep its API identical to `python/bind.cpp`. `tests/test_backends.py` runs against whichever

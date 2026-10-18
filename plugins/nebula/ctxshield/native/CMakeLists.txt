@@ -96,8 +96,15 @@ if(SHIELD_STATIC)
   if(APPLE)
     message(FATAL_ERROR "SHIELD_STATIC=ON is Linux only (macOS has no static libc)")
   endif()
-  set_target_properties(ctxshield-scorer PROPERTIES POSITION_INDEPENDENT_CODE OFF)
-  target_link_options(ctxshield-scorer PRIVATE -static -no-pie -s)
+  # Static PIE: no libraries at run time AND position-independent, so the kernel randomizes where it loads (ASLR).
+  # Hardening is explicit (not left to distro defaults); -ffile-prefix-map keeps build paths out of the binary.
+  set_target_properties(ctxshield-scorer PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  set_target_properties(utf8proc PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  set(SHIELD_HARDEN -fstack-protector-strong -fstack-clash-protection -D_FORTIFY_SOURCE=2
+      -ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.)
+  target_compile_options(ctxshield-scorer PRIVATE -fPIE ${SHIELD_HARDEN})
+  target_compile_options(utf8proc PRIVATE -fPIE ${SHIELD_HARDEN})
+  target_link_options(ctxshield-scorer PRIVATE -static-pie -Wl,-z,relro,-z,now,-z,noexecstack -Wl,--build-id=sha1 -s)
 endif()
 
 if(NOT SHIELD_PYTHON)
