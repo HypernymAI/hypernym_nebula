@@ -31,7 +31,7 @@ import numpy as np
 from shield_core import Shield
 from vendor_alliance import content, jaccard
 from ctxshield.dfc_adapter import TierAModel
-from shield_reader import SHIELD_SKIP_PREFIX, load_session_jsonl      # S25: image-bearing pilot turns kept
+from shield_reader import SHIELD_SKIP_PREFIX, codex_project, is_codex_rollout, load_session_jsonl      # S25: image-bearing pilot turns kept
 from pilot_text import has_paste, own_words                           # S56: pasted blocks are not the pilot's words
 
 PROFANITY = re.compile(r"\b(fuck\w*|shit\w*|asshole\w*|prick\w*|bullshit|wtf|goddamn\w*|damn\w*|dumbass|idiot\w*)\b", re.I)
@@ -240,6 +240,9 @@ class Tracker:
         jsonl = Path(jsonl)
         st = jsonl.stat()
         sid = jsonl.stem
+        project = jsonl.parent.name
+        if is_codex_rollout(jsonl):              # Codex keeps sessions in date folders: name the project by its cwd
+            agent, project = 'codex', codex_project(jsonl)
         ex = load_session_jsonl(jsonl)
         c = self._conn()
         try:
@@ -257,7 +260,7 @@ class Tracker:
             now = time.time()
             counts = {'p': 0, 'r': 0}
             queue = [('s', "INSERT INTO sessions VALUES (?,?,?,?,?,?) ON CONFLICT(session_id) DO UPDATE SET "
-                           "last_synced=excluded.last_synced", (sid, agent, jsonl.parent.name, str(jsonl), now, now))]
+                           "last_synced=excluded.last_synced", (sid, agent, project, str(jsonl), now, now))]
 
             def flush():
                 for kind, sql, params in queue:

@@ -1,5 +1,11 @@
 {
   "mcpServers": {
-    "nebula": { "command": "${CLAUDE_PLUGIN_ROOT}/bin/nebula-run", "args": ["mcp_server.py"] }
+    "nebula": {
+      "command": "sh",
+      "args": [
+        "-c",
+        "r=\"${CLAUDE_PLUGIN_ROOT}\"; s=bin/nebula-run; if [ ! -x \"$r/$s\" ]; then r=$(ls -td \"$HOME\"/.codex/plugins/cache/*/nebula/*/ 2>/dev/null | head -1); fi; exec \"${r%/}/$s\" mcp_server.py"
+      ]
+    }
   }
 }

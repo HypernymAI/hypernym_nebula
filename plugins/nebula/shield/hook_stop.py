@@ -87,13 +87,13 @@ def judgement_line(tr: Tracker, sh: Shield, session_id: str) -> str:
         return ''
     parts = []
     for k in ORDER:
-        lv, cert = level[k]
+        lv = level[k][0]
         mark = '●' if lv >= 1 else '○'
-        parts.append(f"{mark} {k} {min(lv, 9.9):.1f}×{'' if cert else '·w'}")
+        parts.append(f"{mark} {k} {min(lv, 9.9):.1f}×")
     worst = max(v[0] for v in level.values())
     shield = ''.join(ch for ch, _ in SHIELD_ICON[0])        # the braille shield ⠫⣿⠝ (pilot: no 🛡 emoji)
     head = f'{shield} SHIELD' if worst < 1 else f'{shield} SHIELD ⚠'
-    return f"{head}  " + '   '.join(parts) + "   (×threshold; ≥1.0 flagged; ·w = working, not certified)"
+    return f"{head}  " + '   '.join(parts) + "   (×threshold; ≥1.0 flagged)"
 
 
 def run(event: dict, config: Path) -> tuple:

@@ -30,7 +30,7 @@ from ctxshield import shape                                                   # 
 from ctxshield.dfc_adapter import TierAModel                                  # noqa: E402
 from combined_model import CombinedModel                                      # noqa: E402
 from pilot_text import own_words                                              # noqa: E402  (S56)
-from shield_reader import FEEDBACK_PREFIX, SHIELD_SKIP_PREFIX, load_session_jsonl   # noqa: E402  (S25)
+from shield_reader import FEEDBACK_PREFIX, SHIELD_SKIP_PREFIX, codex_msgs, is_codex_rollout, load_session_jsonl   # noqa: E402  (S25)
 from vendor_codebook import CLASSES                                 # noqa: E402
 
 HERE = Path(__file__).resolve().parent
@@ -196,9 +196,23 @@ class Shield:
 
 def transcript_turn(path: str) -> Tuple[str, List[str], List[Dict]]:
     """(last real pilot message, this turn's assistant text blocks, completed exchanges) — the
-    benchmark's exchange reader over the live transcript."""
+    benchmark's exchange reader over the live transcript. A Codex rollout is read through codex_msgs (2026-10-19)."""
     ex = load_session_jsonl(Path(path))
     pilot, blocks = '', []
+    if is_codex_rollout(Path(path)):
+        for r in codex_msgs(Path(path)):
+            if r['type'] == 'user':
+                if r['results'] > 0:
+                    continue                      # a tool result, not the pilot
+                if not Shield.is_real_pilot(r['text']):
+                    continue
+                pilot, blocks = r['text'], []
+            else:
+                for kind, text in r['blocks']:
+                    if kind == 'text':
+                        if text.strip():
+                            blocks.append(text)
+        return pilot, blocks, ex
     with open(path, encoding='utf-8') as f:
         for line in f:
             try:

@@ -19,10 +19,19 @@ so the tracker never stores it as a pilot turn. Before this, the rephrase was sc
 ("Can you rephrase that…" read as the pilot repeating himself: repetition 0.09 → 0.38) and the feedback was stored in
 pilot_turns as his message.
 With skip_prefix=extract_exchanges.SKIP_PREFIX and absorb_prefix=() this function returns EXACTLY what the original returns — asserted over
-every transcript on disk by test_shield_reader.py. NO .get() in new code (the copied body is byte-identical apart from
+every transcript on disk by test_shield_reader.py.
+
+Fourth change (2026-10-19): CODEX. A Codex CLI session file (~/.codex/sessions/…/rollout-*.jsonl, first record
+`session_meta`) is read by codex_msgs() into the SAME message records the Claude Code reader builds, then paired by the
+same loop — so scoring, the tracker and the judgement line are unchanged. Codex documents the transcript as "not a stable
+interface", so codex_msgs reads only Codex's typed thread items (`event_msg` / `item_completed`: UserMessage, AgentMessage,
+HookPrompt, Reasoning, CommandExecution, McpToolCall, FileChange, Extension) and `turn_aborted`, and RAISES when a rollout
+with turns holds none of them (a changed format must never be read as a silent empty session). A Stop hook's
+continuation (HookPrompt) becomes a FEEDBACK_PREFIX record, exactly like Claude Code's "Stop hook feedback:". NO .get() in new code (the copied body is byte-identical apart from
 the parameter). Imports at top.
 """
 import json
+import re
 from pathlib import Path
 from typing import Dict, List
 
@@ -36,19 +45,209 @@ ABSORB_PREFIX = ('[Image:',)
 FEEDBACK_PREFIX = ('Stop hook feedback:',)
 
 
-def load_session_jsonl(jsonl_path: Path, skip_prefix: tuple = SHIELD_SKIP_PREFIX,
-                       absorb_prefix: tuple = ABSORB_PREFIX, feedback_prefix: tuple = FEEDBACK_PREFIX) -> List[Dict]:
-    """Three-part exchanges directly from a live Claude Code session JSONL.
+# ---------------------------------------------------------------------------------------------------- Codex (2026-10-19)
+CODEX_TOOL_ITEMS = ('CommandExecution', 'McpToolCall', 'FileChange', 'Extension')
 
-    THE SOURCE OF TRUTH. Audited 2026-09-06: the corpus DBs were all snapshotted
-    2026-08-03, so every session that continued past that date is TRUNCATED there —
-    including ed15059e, whose Aug 22-23 night (the one the surrender ranking was
-    claimed on) was entirely absent from the DB it was "measured" in. A session must
-    contain its own ending or every trajectory read on it is fiction.
 
-    Produces the same exchange dicts as load_session(), same caps on tool_args
-    (head of each tool's JSON only — payload contents make the referent test vacuous).
-    """
+def is_codex_rollout(jsonl_path: Path) -> bool:
+    """A Codex CLI session file: its first record is `session_meta` (measured on every rollout on disk; no Claude Code
+    transcript starts with one)."""
+    with open(jsonl_path, encoding='utf-8') as f:
+        first = f.readline()
+    try:
+        d = json.loads(first)
+    except ValueError:
+        return False
+    if not isinstance(d, dict):
+        return False
+    if 'type' not in d:
+        return False
+    return d['type'] == 'session_meta'
+
+
+def codex_project(jsonl_path: Path) -> str:
+    """The rollout's working directory in Claude Code's project-folder form (every non-alphanumeric → '-'), so a repo's
+    Codex sessions sit under the same project name as its Claude Code sessions."""
+    with open(jsonl_path, encoding='utf-8') as f:
+        meta = json.loads(f.readline())
+    return re.sub(r'[^A-Za-z0-9]', '-', meta['payload']['cwd'])
+
+
+def _codex_record(kind: str, text: str, ts: str, uuid: str, sid: str) -> Dict:
+    return {'type': kind, 'text': text, 'tools': [], 'errs': 0, 'results': 0, 'res_txt': [], 'blocks': [],
+            'uuid': uuid, 'ts': ts, 'sid': sid}
+
+
+def _codex_texts(content: list) -> str:
+    """The text parts of a UserMessage / AgentMessage item (images and other parts carry no text)."""
+    parts = []
+    for c in content:
+        if isinstance(c, dict):
+            if 'text' in c:
+                parts.append(c['text'])
+    return '\n'.join(parts)
+
+
+def _codex_tool(it: Dict) -> tuple:
+    """(name, input, output text, failed) of one Codex tool item — the tool_use + tool_result pair of a Claude turn."""
+    kind = it['type']
+    failed = False
+    if 'status' in it:
+        if it['status'] != 'completed':
+            failed = True
+    if kind == 'CommandExecution':
+        cmd = it['command']
+        if isinstance(cmd, list):
+            cmd = cmd[-1]
+        out = ''
+        if 'aggregated_output' in it:
+            if it['aggregated_output'] is not None:
+                out = it['aggregated_output']
+        if 'exit_code' in it:
+            if it['exit_code'] is not None:
+                if it['exit_code'] != 0:
+                    failed = True
+        return 'exec_command', {'command': cmd}, out, failed
+    if kind == 'McpToolCall':
+        out = ''
+        if 'result' in it:
+            if it['result'] is not None:
+                out = it['result']
+                if not isinstance(out, str):
+                    out = json.dumps(out)
+        if 'error' in it:
+            if it['error'] is not None:
+                out = json.dumps(it['error'])
+        args = {}
+        if 'arguments' in it:
+            args = it['arguments']
+        return f"mcp__{it['server']}__{it['tool']}", args, out, failed
+    if kind == 'FileChange':
+        files = []
+        if 'changes' in it:
+            if isinstance(it['changes'], dict):
+                files = sorted(it['changes'])
+        out = ''
+        for k in ('stdout', 'stderr'):
+            if k in it:
+                if it[k]:
+                    out += it[k]
+        return 'apply_patch', {'files': files}, out, failed
+    query = ''
+    if 'query' in it:
+        if it['query'] is not None:
+            query = it['query']
+    out = ''
+    if 'results' in it:
+        if it['results'] is not None:
+            out = json.dumps(it['results'])
+    return it['kind'], {'query': query}, out, failed
+
+
+def codex_msgs(jsonl_path: Path) -> List[Dict]:
+    """The message records _claude_msgs builds, from a Codex rollout's typed thread items, in order. A tool item becomes
+    an assistant record carrying the call + a user record carrying its result (the shape of a Claude Code turn); a
+    HookPrompt becomes a FEEDBACK_PREFIX record; turn_aborted becomes '[Request interrupted by user]'.
+    Older Codex (0.101, before typed thread items — and before plugin hooks) wrote `user_message` / `agent_message`
+    events instead: such a rollout is read from those, text only (they carry no tools). Raises when a rollout with turns
+    holds neither: a format Codex changed must not read as an empty session."""
+    msgs, items, turns = [], 0, 0
+    legacy = []
+    sid = jsonl_path.stem
+    with open(jsonl_path, encoding='utf-8') as f:
+        for line in f:
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(d, dict):
+                continue
+            if 'type' not in d:
+                continue
+            if d['type'] != 'event_msg':
+                continue
+            if 'payload' not in d:
+                continue
+            p = d['payload']
+            if not isinstance(p, dict):
+                continue
+            if 'type' not in p:
+                continue
+            ts = ''
+            if 'timestamp' in d:
+                ts = d['timestamp']
+            if p['type'] == 'task_started':
+                turns += 1
+                continue
+            if p['type'] == 'turn_aborted':
+                msgs.append(_codex_record('user', '[Request interrupted by user]', ts, '', sid))
+                legacy.append(_codex_record('user', '[Request interrupted by user]', ts, '', sid))
+                continue
+            if p['type'] == 'user_message':
+                legacy.append(_codex_record('user', p['message'], ts, '', sid))
+                continue
+            if p['type'] == 'agent_message':
+                r = _codex_record('assistant', p['message'], ts, '', sid)
+                if r['text'].strip():
+                    r['blocks'] = [('text', r['text'])]
+                legacy.append(r)
+                continue
+            if p['type'] != 'item_completed':
+                continue
+            items += 1
+            it = p['item']
+            uid = ''
+            if 'id' in it:
+                uid = it['id']
+            kind = it['type']
+            if kind == 'UserMessage':
+                msgs.append(_codex_record('user', _codex_texts(it['content']), ts, uid, sid))
+            elif kind == 'HookPrompt':
+                said = '\n'.join(fr['text'] for fr in it['fragments'])
+                msgs.append(_codex_record('user', f"{FEEDBACK_PREFIX[0]} {said}", ts, uid, sid))
+            elif kind == 'AgentMessage':
+                r = _codex_record('assistant', _codex_texts(it['content']), ts, uid, sid)
+                if r['text'].strip():
+                    r['blocks'] = [('text', r['text'])]
+                msgs.append(r)
+            elif kind == 'Reasoning':
+                thought = []
+                for k in ('summary_text', 'raw_content'):
+                    if k in it:
+                        if isinstance(it[k], list):
+                            for x in it[k]:
+                                if isinstance(x, str):
+                                    if x.strip():
+                                        thought.append(x)
+                if thought:
+                    r = _codex_record('assistant', '', ts, uid, sid)
+                    r['blocks'] = [('thinking', '\n'.join(thought))]
+                    msgs.append(r)
+            elif kind in CODEX_TOOL_ITEMS:
+                name, args, out, failed = _codex_tool(it)
+                call = _codex_record('assistant', '', ts, uid, sid)
+                call['tools'] = [{'name': name, 'input': args}]
+                call['blocks'] = [('tool', f"{name} " + json.dumps(args)[:TOOL_ARG_HEAD])]
+                res = _codex_record('user', '', ts, '', sid)
+                res['results'] = 1
+                mark = ''
+                if failed:
+                    res['errs'] = 1
+                    mark = '[ERROR] '
+                res['res_txt'] = [mark + _result_text(out)]
+                msgs.extend([call, res])
+    if items == 0:
+        if len(legacy) > 0:
+            return legacy
+        if turns > 0:
+            raise ValueError(f"nebula: unrecognized Codex transcript {jsonl_path.name} — {turns} turns but no "
+                             f"item_completed or user_message records (Codex changed its session format; nebula "
+                             f"needs an update)")
+    return msgs
+
+
+def _claude_msgs(jsonl_path: Path) -> List[Dict]:
+    """Message records from a Claude Code session JSONL (the original reader's first pass, unchanged)."""
     msgs = []
     with open(jsonl_path, encoding='utf-8') as f:
         for line in f:
@@ -94,6 +293,27 @@ def load_session_jsonl(jsonl_path: Path, skip_prefix: tuple = SHIELD_SKIP_PREFIX
             msgs.append({'type': d['type'], 'text': '\n'.join(texts), 'tools': tools,
                          'errs': errs, 'results': results, 'res_txt': res_txt,
                          'blocks': blocks, 'uuid': uuid, 'ts': ts, 'sid': sid})
+    return msgs
+
+
+def load_session_jsonl(jsonl_path: Path, skip_prefix: tuple = SHIELD_SKIP_PREFIX,
+                       absorb_prefix: tuple = ABSORB_PREFIX, feedback_prefix: tuple = FEEDBACK_PREFIX) -> List[Dict]:
+    """Three-part exchanges directly from a live Claude Code session JSONL.
+
+    THE SOURCE OF TRUTH. Audited 2026-09-06: the corpus DBs were all snapshotted
+    2026-08-03, so every session that continued past that date is TRUNCATED there —
+    including ed15059e, whose Aug 22-23 night (the one the surrender ranking was
+    claimed on) was entirely absent from the DB it was "measured" in. A session must
+    contain its own ending or every trajectory read on it is fiction.
+
+    Produces the same exchange dicts as load_session(), same caps on tool_args
+    (head of each tool's JSON only — payload contents make the referent test vacuous).
+    A Codex rollout is read by codex_msgs() and paired by the same loop below.
+    """
+    if is_codex_rollout(jsonl_path):
+        msgs = codex_msgs(jsonl_path)
+    else:
+        msgs = _claude_msgs(jsonl_path)
 
     exchanges = []
     last_pilot = ''

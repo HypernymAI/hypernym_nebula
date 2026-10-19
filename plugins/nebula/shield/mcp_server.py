@@ -8,7 +8,10 @@ tools/list → tools/call. Tools (all local, no network):
   shield_score_reply      score assistant text block(s) against the pilot's ask (Stop heads)
   shield_score_turn       score a pilot turn given the previous reply and earlier asks (user_prompt heads)
   shield_score_transcript score the LAST turn of a Claude Code transcript JSONL (both sides)
-Every call is logged to the same decision log as the hooks (event 'mcp').
+  shield_soliton          switch soliton (beta) on / off, or show it — the same `customize.py soliton` the Claude Code
+                          skill runs (2026-10-19: Codex has no plugin slash commands and does not run a skill's `!` line,
+                          so this tool is how soliton is switched from inside Codex). Not logged as a scoring call.
+Every scoring call is logged to the same decision log as the hooks (event 'mcp').
 
     <python> mcp_server.py [--config path]
 NO .get() on data dicts (JSON-RPC params are validated explicitly). Errors → JSON-RPC error responses.
@@ -16,6 +19,7 @@ NO .get() on data dicts (JSON-RPC params are validated explicitly). Errors → J
 import noegress                                   # noqa: F401 — FIRST: the no-network guarantee (noegress.py)
 import argparse
 import json
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -25,6 +29,7 @@ from settings import excluded, resolve_config
 from shield_core import Shield, sha, transcript_turn
 
 PROTOCOL = '2025-06-18'
+CUSTOMIZE = Path(__file__).resolve().parent / 'customize.py'
 TOOLS = [
     {'name': 'shield_heads', 'description': 'List the loaded shield heads (class, threshold, spec).',
      'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}},
@@ -44,7 +49,25 @@ TOOLS = [
      'description': 'Score the last turn of a Claude Code transcript JSONL: the pilot turn and the reply.',
      'inputSchema': {'type': 'object', 'required': ['transcript_path'],
                      'properties': {'transcript_path': {'type': 'string'}}}},
+    {'name': 'shield_soliton',
+     'description': "Soliton (beta): when a reply peaks orange (confession, handback or claim at 1.0x or more) a SHIELDED "
+                    "banner appears under it and the reply is rephrased once. state 'on' or 'off' switches it (one "
+                    "switch for every session on this computer); 'status' shows it. Show the returned text verbatim.",
+     'inputSchema': {'type': 'object', 'required': ['state'],
+                     'properties': {'state': {'type': 'string', 'enum': ['on', 'off', 'status']}},
+                     'additionalProperties': False}},
 ]
+
+
+def soliton(state: str) -> str:
+    """Run customize.py soliton [on|off] under this interpreter; its own output, verbatim. Raises if it fails."""
+    argv = [sys.executable, str(CUSTOMIZE), 'soliton']
+    if state != 'status':
+        argv.append(state)
+    r = subprocess.run(argv, capture_output=True, text=True, timeout=30)
+    if r.returncode != 0:
+        raise ValueError(f"customize.py soliton failed: {r.stderr.strip()[-400:]}")
+    return r.stdout.strip()
 
 
 def need(args: Dict, key: str, typ):
@@ -55,6 +78,11 @@ def need(args: Dict, key: str, typ):
 
 def call(sh: Shield, name: str, args: Dict) -> Dict:
     t0 = time.time()
+    if name == 'shield_soliton':
+        state = need(args, 'state', str)
+        if state not in ('on', 'off', 'status'):
+            raise ValueError("argument 'state' must be 'on', 'off' or 'status'")
+        return {'soliton': soliton(state)}
     if not sh.enabled:
         return {'enabled': False}
     if name == 'shield_heads':
