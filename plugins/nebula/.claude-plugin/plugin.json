@@ -1,6 +1,6 @@
 {
   "name": "nebula",
-  "version": "0.4.19",
+  "version": "0.4.20",
   "description": "Local, offline shield for Claude Code: scores each reply for fabricated confession, decision handback, claim beyond evidence and forced repetition, shows a judgement note and badge, and keeps a private local record. No network, no telemetry, no training on your data.",
   "author": {
     "name": "Hypernym",
