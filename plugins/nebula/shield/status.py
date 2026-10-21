@@ -40,6 +40,11 @@ def main() -> None:
         print("central db: not created yet")
         return
     c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    have = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'view')")}
+    if 'sessions' not in have:          # the MCP server / a hook made the file, but no session is recorded yet
+        print("central db: no session recorded yet")
+        c.close()
+        return
     n = {t: c.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in ('sessions', 'pilot_turns', 'replies', 'texts')}
     print(f"central db {db} ({db.stat().st_size / 2**20:.1f} MB): sessions {n['sessions']}, pilot turns "
           f"{n['pilot_turns']}, replies {n['replies']}, texts {n['texts']}")

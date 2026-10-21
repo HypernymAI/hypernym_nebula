@@ -21,34 +21,26 @@ from settings import (PLUGIN_ROOT, USER_DIR, USER_SETTINGS, _validate_user, reso
                       soliton_on, user_settings, wings_count)
 
 SHEET = PLUGIN_ROOT / 'shield' / 'brand_assets' / 'wings_contact_sheet.png'
-# Soliton's rephrase can call nebula's own scoring tools (local, offline) to check a draft — a permission prompt there
-# stopped the pilot mid-rephrase (2026-09-30). Turning soliton on grants exactly these, once, visibly; off takes back
-# only what soliton itself added (recorded in soliton.json), never the person's own rules.
-SOLITON_TOOLS = ['mcp__plugin_nebula_nebula__shield_heads', 'mcp__plugin_nebula_nebula__shield_score_reply',
-                 'mcp__plugin_nebula_nebula__shield_score_transcript', 'mcp__plugin_nebula_nebula__shield_score_turn']
+# Soliton used to grant nebula's scoring tools in Claude Code's settings when switched on; since 2026-10-21 it grants
+# nothing (soliton_permissions) — Claude Code asks the person once, and "always allow" is their own rule.
 
 
 def soliton_permissions(grant: bool, granted_before: list) -> list:
-    """Add (grant) or remove (the ones soliton added) the scoring tools in Claude Code's user settings.json
-    (backed up first by write_settings). Returns the rules soliton now owns."""
+    """Soliton no longer grants anything (2026-10-21 security update): a plugin must not edit Claude Code's own
+    permission rules. Turning soliton OFF still removes the rules an older version added (recorded in soliton.json) —
+    removal only ever lowers what is allowed. Returns the rules soliton still owns."""
+    if grant:
+        return granted_before
+    if not granted_before:
+        return []
     s = nebula_statusline.load_json(nebula_statusline.settings_path())
     perms = s['permissions'] if 'permissions' in s else {}
     allow = list(perms['allow']) if 'allow' in perms else []
-    if grant:
-        added = [t for t in SOLITON_TOOLS if t not in allow]
-        owned = granted_before + added
-        allow += added
-    else:
-        added = []
-        owned = []
-        allow = [t for t in allow if t not in granted_before]
-    if added or (not grant and granted_before):
-        perms['allow'] = allow
-        s['permissions'] = perms
-        note = nebula_statusline.write_settings(s)
-        print(f"{'allowed' if grant else 'removed'}: {', '.join(added if grant else granted_before)}  "
-              f"({nebula_statusline.settings_path()}; {note})")
-    return owned
+    perms['allow'] = [t for t in allow if t not in granted_before]
+    s['permissions'] = perms
+    note = nebula_statusline.write_settings(s)
+    print(f"removed: {', '.join(granted_before)}  ({nebula_statusline.settings_path()}; {note})")
+    return []
 
 
 def save(u: dict) -> None:

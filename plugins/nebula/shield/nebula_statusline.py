@@ -42,7 +42,7 @@ from pathlib import Path
 from brand import icon, logo, wings_icon
 from termbg import background
 
-VERSION = 12                                   # a newer copy is never overwritten by an older one (refresh)
+VERSION = 13                                   # a newer copy is never overwritten by an older one (refresh)
 MARKETPLACE = 'hypernym-nebula'                # the shield's home (public)
 MARKETPLACES = ('hypernym-nebula', 'hypernym-nebula-pro')    # either plugin is found under either name
 HOME = {'nebula': 'hypernym-nebula', 'hypernym': 'hypernym-nebula-pro'}   # where each one is installed FROM
@@ -162,7 +162,8 @@ def compose(event: str) -> list:
         if name == 'nebula' and not shield_ready(root):
             chk = subprocess.run([str(root / 'bin' / 'nebula-run'), '--check'], capture_output=True, text=True,
                                  timeout=TIMEOUT_S)
-            out[name] = (["\x1b[2m⋯ nebula: finishing setup at session start (builds its local Python environment once)\x1b[0m"]
+            out[name] = (["\x1b[2m⋯ nebula: restart Claude Code once to finish setup (it builds its local Python "
+                          "environment at session start)\x1b[0m"]
                          if chk.returncode == 0 else [f"✖ {last_words(chk.stderr)}"])
             continue
         argv = part_argv(name, root)
@@ -189,6 +190,25 @@ def compose(event: str) -> list:
             out[name] = [f"✖ {name}: no answer within {TIMEOUT_S:.0f} s"]
     return layout(out['nebula'] if 'nebula' in out else [],
                   '  '.join(out['hypernym']) if 'hypernym' in out else '', time.time())
+
+
+def claude_installed_copy() -> bool:
+    """Is THIS file part of a plugin install listed in Claude Code's own registry (installed_plugins.json)?
+    Only such a copy may write the launcher and Claude Code's settings (2026-10-21): not a Codex plugin cache, not a
+    stray or development copy, whatever its VERSION."""
+    me = Path(__file__).resolve()
+    reg = load_json(config_dir() / 'plugins' / 'installed_plugins.json')
+    if 'plugins' not in reg:
+        return False
+    for n in ORDER:
+        for k in keys(n):
+            if k not in reg['plugins']:
+                continue
+            for entry in reg['plugins'][k]:
+                root = Path(entry['installPath']).resolve()
+                if me == root or root in me.parents:
+                    return True
+    return False
 
 
 def registered_anywhere() -> bool:
@@ -262,7 +282,10 @@ def version_of(p: Path) -> int:
 
 
 def refresh() -> None:
-    """Copy the SHARED files to ~/.hypernym-nebula/bin (never over a newer set) and write the launcher (if changed)."""
+    """Copy the SHARED files to ~/.hypernym-nebula/bin (never over a newer set) and write the launcher (if changed).
+    Only from a copy Claude Code itself installed (claude_installed_copy)."""
+    if not claude_installed_copy():
+        return
     BIN.mkdir(parents=True, exist_ok=True)
     here = Path(__file__).resolve().parent
     if version_of(COPY) <= VERSION:
@@ -300,9 +323,32 @@ def recognized(cmd) -> bool:
     return cmd is not None and any(m in cmd for m in RECOGNIZED)
 
 
+def allowed_change(old: dict, new: dict) -> None:
+    """The ONLY changes this plugin makes to Claude Code's settings (2026-10-21): the statusLine entry, and REMOVING
+    permission rules (soliton's old grants). Anything else — another key, a permission added — raises."""
+    for k in set(old) | set(new):
+        if k in ('statusLine', 'permissions'):
+            continue
+        if (k in old) != (k in new) or (k in old and old[k] != new[k]):
+            raise ValueError(f"refusing to change '{k}' in {settings_path()}: this plugin only changes statusLine")
+    po = old['permissions'] if 'permissions' in old else {}
+    pn = new['permissions'] if 'permissions' in new else {}
+    for k in set(po) | set(pn):
+        if k == 'allow':
+            continue
+        if (k in po) != (k in pn) or (k in po and po[k] != pn[k]):
+            raise ValueError(f"refusing to change permissions.{k} in {settings_path()}")
+    before = set(po['allow']) if 'allow' in po else set()
+    after = set(pn['allow']) if 'allow' in pn else set()
+    if not after <= before:
+        raise ValueError(f"refusing to ADD permissions {sorted(after - before)} in {settings_path()}")
+
+
 def write_settings(s: dict) -> str:
-    """Backup (when the file exists), then an atomic replace; the new file must parse before it replaces the old one."""
+    """Backup (when the file exists), then an atomic replace; the new file must parse before it replaces the old one.
+    Only statusLine changes, or permission rules being removed (allowed_change)."""
     p = settings_path()
+    allowed_change(load_json(p), s)
     note = ''
     if p.exists():
         b = p.with_name(f"settings.json.backup_nebula_{time.strftime('%Y%m%d_%H%M%S')}_{os.getpid()}")
@@ -321,6 +367,10 @@ def ours() -> dict:
 
 
 def install(force: bool) -> int:
+    if not claude_installed_copy():
+        print(f"Not installing: {Path(__file__).resolve()} is not a plugin copy Claude Code installed (see "
+              f"{config_dir() / 'plugins' / 'installed_plugins.json'}); only such a copy may set the status line.")
+        return 1
     refresh()
     s = load_json(settings_path())
     cur = current_command(s)
@@ -379,7 +429,10 @@ def intro_solid(now: float) -> bool:
 
 def auto() -> str:
     """SessionStart: set our status line when there is none, or when it is one of ours / an older version of ours.
-    Never a foreign one, never after `remove`. Returns what it did ('' = nothing) — hooks must not print."""
+    Never a foreign one, never after `remove`. Returns what it did ('' = nothing) — hooks must not print.
+    Nothing at all unless this is a copy Claude Code installed (a Codex session never touches Claude Code's settings)."""
+    if not claude_installed_copy():
+        return ''
     refresh()
     arm_intro()
     if OFF.exists():

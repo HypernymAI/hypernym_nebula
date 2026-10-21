@@ -25,6 +25,8 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
+from ctxshield import _integrity
+
 DIM_BITS = 18
 ABI_VERSION = 1
 PROTOCOL = 1
@@ -61,6 +63,8 @@ if not SCORER.is_file():
     raise ImportError(f"ctxshield: static scorer missing: {SCORER}")
 if not os.access(SCORER, os.X_OK):
     raise ImportError(f"ctxshield: static scorer is not executable: {SCORER} (chmod +x)")
+if 'CTXSHIELD_SCORER_BIN' not in os.environ:
+    _integrity.verify(SCORER)              # the bundled scorer runs only if it is byte-for-byte the pinned build
 
 
 class _Client:

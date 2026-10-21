@@ -19,6 +19,7 @@ only with SHIELD_CUDA_UNVERIFIED_OK=true (for the L4 verification run itself).
 docs: list of {field_name: text}. field_names: the head group's fields (any order; sorted here).
 NO .get(). No ClaudeStorm imports.
 """
+import importlib.util
 import json
 import os
 import re
@@ -28,13 +29,15 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
+from ctxshield import _integrity
 from ctxshield import spec as S
 
 USE_STATIC_SCORER = sys.platform.startswith('linux') or (
     'CTXSHIELD_SCORER' in os.environ and os.environ['CTXSHIELD_SCORER'] == 'static')
 if USE_STATIC_SCORER:
-    from ctxshield import _native_static as _native
+    from ctxshield import _native_static as _native          # verifies its scorer program (_integrity) on import
 else:
+    _integrity.verify(Path(importlib.util.find_spec('ctxshield._native').origin))   # BEFORE the native code loads
     from ctxshield import _native
 
 _SURR = re.compile('[\ud800-\udfff]')

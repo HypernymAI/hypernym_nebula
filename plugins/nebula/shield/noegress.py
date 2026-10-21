@@ -9,14 +9,20 @@ network operation the interpreter can perform, and on launching any program exce
   - allowed programs: `ps` and `osascript` (terminal-tab background colour, termbg.py — local IPC with Terminal.app,
     no network), this same Python interpreter (the badge's catch-up sync), and the plugin's OWN bundled native
     scorer `ctxshield/ctxshield/static/ctxshield-scorer-linux-<cpu>` (Linux: the static C++ kernel, spoken to over
-    stdin/stdout — it opens no socket and no file). Only those exact files: a same-named program anywhere else
-    (or CTXSHIELD_SCORER_BIN pointing elsewhere) is blocked.
+    stdin/stdout — it opens no socket and no file). Only those exact files, and only while each is byte-for-byte the
+    build pinned in ctxshield/native/PLATFORMS.json (sha256, checked at launch — 2026-10-21): a same-named program
+    anywhere else, a changed file at the same path, or CTXSHIELD_SCORER_BIN pointing elsewhere is blocked.
+  - what this guard is, exactly: a Python audit hook. It sees what Python code does. It cannot see inside native code,
+    which is why the native scorer (the Linux program above; on macOS the module _native.cpython-313-darwin.so, checked
+    by ctxshield/_integrity.py before it is loaded) is pinned by hash rather than trusted by name.
   - the MCP server talks to Claude Code over stdin/stdout pipes — no socket is opened
 
 tests/test_privacy.py proves it: every entry point imports this first (static check), no network module is imported
 anywhere (static check), and a real connection attempt inside a hook process raises (runtime check).
 NO .get(). Imports at top.
 """
+import hashlib
+import json
 import os
 import sys
 
@@ -31,6 +37,8 @@ _SELF = os.path.realpath(sys.executable)
 _SCORER_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'ctxshield', 'ctxshield',
                            'static')
 _SCORERS = frozenset(os.path.join(_SCORER_DIR, f'ctxshield-scorer-linux-{cpu}') for cpu in ('x86_64', 'aarch64'))
+_PLATFORMS = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'ctxshield', 'native',
+                          'PLATFORMS.json')
 
 
 class EgressBlocked(PermissionError):
@@ -45,9 +53,22 @@ def _allowed_program(exe) -> bool:
     if os.path.realpath(exe) == _SELF:
         return True
     if os.path.realpath(exe) in _SCORERS:
-        return True
+        return _scorer_is_pinned(os.path.realpath(exe))
     base = os.path.basename(exe)
     return base in ALLOWED_PROGRAMS and (exe == base or exe in (f'/bin/{base}', f'/usr/bin/{base}'))
+
+
+def _scorer_is_pinned(path: str) -> bool:
+    """The bundled scorer may run only while its bytes are the pinned build (PLATFORMS.json, sha256)."""
+    rel = 'static/' + os.path.basename(path)
+    modules = json.loads(open(_PLATFORMS).read())['modules']
+    if rel not in modules:
+        return False
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1 << 20), b''):
+            h.update(chunk)
+    return h.hexdigest() == modules[rel]['sha256']
 
 
 def _hook(event: str, args) -> None:

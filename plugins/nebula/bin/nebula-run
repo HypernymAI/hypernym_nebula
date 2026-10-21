@@ -52,35 +52,15 @@ if [ -z "$UV" ]; then
   cannot "nebula needs uv — install: curl -LsSf https://astral.sh/uv/install.sh | sh — then start a new session"
 fi
 if [ "$SCRIPT" = --check ]; then
-  # SETUP WITHOUT A RESTART. The shared status line runs `--check` every second while this version is not ready
-  # (.venv/.nebula_ready missing). That readiness used to come ONLY from this version's SessionStart hook — and a Claude
-  # Code session already running when an update lands keeps the OLD version's hooks, so the new version was never
-  # readied: "finishing setup" forever until a restart (pilot's second Mac, 2026-09-29). Now --check starts the one-time
-  # setup itself — the SAME session_start.py the hook runs (uv builds the environment on first use, then marks it
-  # ready) — detached, at most once (lock), logged. A failed setup is REPORTED (exit 1 + reason + log) and retried
-  # after 5 minutes; never hidden. Works with every status line already installed (they all call --check).
-  READY="$ROOT/.venv/.nebula_ready"
-  LOCK="$ROOT/.nebula_setup.lock"
-  CODE="$ROOT/.nebula_setup.exit"
-  LOG="$ROOT/.nebula_setup.log"
-  if [ ! -f "$READY" ]; then
-    if [ -f "$CODE" ] && [ "$(cat "$CODE")" != 0 ]; then
-      if [ -n "$(find "$CODE" -mmin -5 2>/dev/null)" ]; then
-        echo "nebula: one-time setup failed — $(tail -n 1 "$LOG" 2>/dev/null) (log: $LOG; retrying within 5 min)" >&2
-        exit 1
-      fi
-      rm -f "$CODE" "$LOCK"
-    fi
-    if [ -f "$LOCK" ] && [ -z "$(find "$LOCK" -mmin -10 2>/dev/null)" ]; then
-      rm -f "$LOCK"                                  # a setup that never finished in 10 min: start again
-    fi
-    if ( set -C; echo $$ > "$LOCK" ) 2>/dev/null; then   # noclobber = atomic: exactly one starter
-      rm -f "$CODE"
-      nohup sh -c 'echo "{}" | "$1" session_start.py > "$2" 2>&1; echo $? > "$3"; rm -f "$4"' sh \
-        "$0" "$LOG" "$CODE" "$LOCK" < /dev/null > /dev/null 2>&1 &
-    fi
+  # READINESS ONLY (2026-10-21 security update). The shared status line runs `--check` while this version is not ready
+  # (.venv/.nebula_ready missing). It no longer starts the setup: a status line must never download anything. The
+  # one-time environment build (uv — the only download nebula ever makes) runs from this plugin's SessionStart hook,
+  # i.e. the first session after an install or update; until then the status line asks for that one restart.
+  if [ -f "$ROOT/.venv/.nebula_ready" ]; then
+    echo ok
+  else
+    echo pending
   fi
-  echo ok
   exit 0
 fi
 exec "$UV" run --project "$ROOT" --frozen --quiet --no-dev python "$ROOT/shield/$SCRIPT" "$@"

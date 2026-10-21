@@ -1,8 +1,6 @@
 ---
 description: Opt in — read ALL your past Claude Code sessions on this machine into the local nebula record (never uploaded). Runs at low priority.
-allowed-tools: Bash(*)
+allowed-tools: mcp__plugin_nebula_nebula__shield_backfill
 ---
 
-!`"${CLAUDE_PLUGIN_ROOT}/bin/nebula-run" backfill.py`
-
-Show the output above verbatim. Do not run anything else.
+Call the nebula MCP tool `shield_backfill`. Show its output verbatim. Do not run anything else.
