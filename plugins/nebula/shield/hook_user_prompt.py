@@ -13,13 +13,14 @@ through. Disabled → exit 0. Every decision logged. Errors raise.
 import noegress                                   # noqa: F401 — FIRST: the no-network guarantee (noegress.py)
 import argparse
 import json
+import sqlite3
 import sys
 import time
 from pathlib import Path
 
 from settings import excluded, resolve_config
 from shield_core import Shield, sha
-from shield_reader import load_session_jsonl          # S25: image-bearing pilot turns kept
+from tracker import read_window                       # 2026-10-21: only from the sync cursor, never the whole file
 
 
 def run(event: dict, config: Path) -> tuple:
@@ -36,7 +37,11 @@ def run(event: dict, config: Path) -> tuple:
         return 0, '', ''                     # SHADOW: the pilot turn is recorded by the Stop hook's sync
     if not sh.is_real_pilot(prompt):
         return 0, '', ''
-    exchanges = load_session_jsonl(Path(event['transcript_path']))
+    c = sqlite3.connect(str(Path(sh.cfg['db_path']).expanduser()), timeout=120.0)
+    try:
+        exchanges = read_window(c, Path(event['transcript_path']))['ex']   # holds the LOOKBACK exchanges S1 reads
+    finally:
+        c.close()
     scores, fired = sh.score_heads('user_prompt', {'S1': [sh.pilot_turn_fields(prompt, exchanges)]})
     out = ''
     if fired:

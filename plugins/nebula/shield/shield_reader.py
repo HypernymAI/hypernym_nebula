@@ -45,6 +45,17 @@ ABSORB_PREFIX = ('[Image:',)
 FEEDBACK_PREFIX = ('Stop hook feedback:',)
 
 
+def jsonl_lines(jsonl_path: Path, start: int):
+    """(byte offset, line) of every line from `start` on. Binary lines split on b'\\n' — the same lines text mode yields
+    for a JSONL file (JSON never holds a raw CR or LF) — decoded strictly as UTF-8, as the text-mode readers did."""
+    with open(jsonl_path, 'rb') as f:
+        f.seek(start)
+        pos = start
+        for raw in f:
+            yield pos, raw.decode('utf-8')
+            pos += len(raw)
+
+
 # ---------------------------------------------------------------------------------------------------- Codex (2026-10-19)
 CODEX_TOOL_ITEMS = ('CommandExecution', 'McpToolCall', 'FileChange', 'Extension')
 
@@ -73,39 +84,38 @@ def codex_project(jsonl_path: Path) -> str:
     return re.sub(r'[^A-Za-z0-9]', '-', meta['payload']['cwd'])
 
 
-def codex_models_by_item(jsonl_path: Path) -> Dict[str, str]:
+def codex_models_by_item(jsonl_path: Path, start: int = 0) -> Dict[str, str]:
     """Each Codex reply (AgentMessage item id) → the model that wrote it: the `model` of the turn's `turn_context`
-    record, which Codex writes at the start of every turn."""
+    record, which Codex writes at the start of every turn (before the turn's UserMessage — a window starts there)."""
     out, model = {}, 'unknown'
-    with open(jsonl_path, encoding='utf-8') as f:
-        for line in f:
-            try:
-                d = json.loads(line)
-            except ValueError:
-                continue
-            if not isinstance(d, dict):
-                continue
-            if 'type' not in d:
-                continue
-            if 'payload' not in d:
-                continue
-            p = d['payload']
-            if not isinstance(p, dict):
-                continue
-            if d['type'] == 'turn_context':
-                if 'model' in p:
-                    model = p['model']
-                continue
-            if d['type'] != 'event_msg':
-                continue
-            if 'type' not in p:
-                continue
-            if p['type'] != 'item_completed':
-                continue
-            it = p['item']
-            if it['type'] == 'AgentMessage':
-                if 'id' in it:
-                    out[it['id']] = model
+    for _, line in jsonl_lines(jsonl_path, start):
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(d, dict):
+            continue
+        if 'type' not in d:
+            continue
+        if 'payload' not in d:
+            continue
+        p = d['payload']
+        if not isinstance(p, dict):
+            continue
+        if d['type'] == 'turn_context':
+            if 'model' in p:
+                model = p['model']
+            continue
+        if d['type'] != 'event_msg':
+            continue
+        if 'type' not in p:
+            continue
+        if p['type'] != 'item_completed':
+            continue
+        it = p['item']
+        if it['type'] == 'AgentMessage':
+            if 'id' in it:
+                out[it['id']] = model
     return out
 
 
@@ -180,155 +190,181 @@ def _codex_tool(it: Dict) -> tuple:
     return it['kind'], {'query': query}, out, failed
 
 
-def codex_msgs(jsonl_path: Path) -> List[Dict]:
+def codex_msgs(jsonl_path: Path, start: int = 0, offsets: list = None) -> List[Dict]:
     """The message records _claude_msgs builds, from a Codex rollout's typed thread items, in order. A tool item becomes
     an assistant record carrying the call + a user record carrying its result (the shape of a Claude Code turn); a
     HookPrompt becomes a FEEDBACK_PREFIX record; turn_aborted becomes '[Request interrupted by user]'.
     Older Codex (0.101, before typed thread items — and before plugin hooks) wrote `user_message` / `agent_message`
     events instead: such a rollout is read from those, text only (they carry no tools). Raises when a rollout with turns
-    holds neither: a format Codex changed must not read as an empty session."""
+    holds neither: a format Codex changed must not read as an empty session.
+    `start` / `offsets` (2026-10-21, incremental reads): read from byte `start`; when `offsets` is a list, a
+    (read_from, line) pair is appended for every returned record: `line` is the record's own line; `read_from` is where
+    a read must start to also see the model in effect for it — for a UserMessage the latest `turn_context` before it
+    (a dialog answer comes as a UserMessage with no turn_context of its own, so that is an EARLIER turn's: a window
+    reads from read_from but pairs only from `line`)."""
     msgs, items, turns = [], 0, 0
     legacy = []
+    msg_offs, legacy_offs = [], []
+    ctx_off = None
     sid = jsonl_path.stem
-    with open(jsonl_path, encoding='utf-8') as f:
-        for line in f:
-            try:
-                d = json.loads(line)
-            except ValueError:
-                continue
-            if not isinstance(d, dict):
-                continue
-            if 'type' not in d:
-                continue
-            if d['type'] != 'event_msg':
-                continue
-            if 'payload' not in d:
-                continue
-            p = d['payload']
-            if not isinstance(p, dict):
-                continue
-            if 'type' not in p:
-                continue
-            ts = ''
-            if 'timestamp' in d:
-                ts = d['timestamp']
-            if p['type'] == 'task_started':
-                turns += 1
-                continue
-            if p['type'] == 'turn_aborted':
-                msgs.append(_codex_record('user', '[Request interrupted by user]', ts, '', sid))
-                legacy.append(_codex_record('user', '[Request interrupted by user]', ts, '', sid))
-                continue
-            if p['type'] == 'user_message':
-                legacy.append(_codex_record('user', p['message'], ts, '', sid))
-                continue
-            if p['type'] == 'agent_message':
-                r = _codex_record('assistant', p['message'], ts, '', sid)
-                if r['text'].strip():
-                    r['blocks'] = [('text', r['text'])]
-                legacy.append(r)
-                continue
-            if p['type'] != 'item_completed':
-                continue
-            items += 1
-            it = p['item']
-            uid = ''
-            if 'id' in it:
-                uid = it['id']
-            kind = it['type']
-            if kind == 'UserMessage':
-                msgs.append(_codex_record('user', _codex_texts(it['content']), ts, uid, sid))
-            elif kind == 'HookPrompt':
-                said = '\n'.join(fr['text'] for fr in it['fragments'])
-                msgs.append(_codex_record('user', f"{FEEDBACK_PREFIX[0]} {said}", ts, uid, sid))
-            elif kind == 'AgentMessage':
-                r = _codex_record('assistant', _codex_texts(it['content']), ts, uid, sid)
-                if r['text'].strip():
-                    r['blocks'] = [('text', r['text'])]
+    for off, line in jsonl_lines(jsonl_path, start):
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(d, dict):
+            continue
+        if 'type' not in d:
+            continue
+        if d['type'] == 'turn_context':
+            ctx_off = off
+        if d['type'] != 'event_msg':
+            continue
+        if 'payload' not in d:
+            continue
+        p = d['payload']
+        if not isinstance(p, dict):
+            continue
+        if 'type' not in p:
+            continue
+        ts = ''
+        if 'timestamp' in d:
+            ts = d['timestamp']
+        if p['type'] == 'task_started':
+            turns += 1
+            continue
+        if p['type'] == 'turn_aborted':
+            msgs.append(_codex_record('user', '[Request interrupted by user]', ts, '', sid))
+            legacy.append(_codex_record('user', '[Request interrupted by user]', ts, '', sid))
+            msg_offs.append((off, off))
+            legacy_offs.append((off, off))
+            continue
+        if p['type'] == 'user_message':
+            legacy.append(_codex_record('user', p['message'], ts, '', sid))
+            legacy_offs.append((off, off))
+            continue
+        if p['type'] == 'agent_message':
+            r = _codex_record('assistant', p['message'], ts, '', sid)
+            if r['text'].strip():
+                r['blocks'] = [('text', r['text'])]
+            legacy.append(r)
+            legacy_offs.append((off, off))
+            continue
+        if p['type'] != 'item_completed':
+            continue
+        items += 1
+        it = p['item']
+        uid = ''
+        if 'id' in it:
+            uid = it['id']
+        kind = it['type']
+        if kind == 'UserMessage':
+            msgs.append(_codex_record('user', _codex_texts(it['content']), ts, uid, sid))
+            if ctx_off is None:
+                msg_offs.append((off, off))
+            else:
+                msg_offs.append((ctx_off, off))
+        elif kind == 'HookPrompt':
+            said = '\n'.join(fr['text'] for fr in it['fragments'])
+            msgs.append(_codex_record('user', f"{FEEDBACK_PREFIX[0]} {said}", ts, uid, sid))
+            msg_offs.append((off, off))
+        elif kind == 'AgentMessage':
+            r = _codex_record('assistant', _codex_texts(it['content']), ts, uid, sid)
+            if r['text'].strip():
+                r['blocks'] = [('text', r['text'])]
+            msgs.append(r)
+            msg_offs.append((off, off))
+        elif kind == 'Reasoning':
+            thought = []
+            for k in ('summary_text', 'raw_content'):
+                if k in it:
+                    if isinstance(it[k], list):
+                        for x in it[k]:
+                            if isinstance(x, str):
+                                if x.strip():
+                                    thought.append(x)
+            if thought:
+                r = _codex_record('assistant', '', ts, uid, sid)
+                r['blocks'] = [('thinking', '\n'.join(thought))]
                 msgs.append(r)
-            elif kind == 'Reasoning':
-                thought = []
-                for k in ('summary_text', 'raw_content'):
-                    if k in it:
-                        if isinstance(it[k], list):
-                            for x in it[k]:
-                                if isinstance(x, str):
-                                    if x.strip():
-                                        thought.append(x)
-                if thought:
-                    r = _codex_record('assistant', '', ts, uid, sid)
-                    r['blocks'] = [('thinking', '\n'.join(thought))]
-                    msgs.append(r)
-            elif kind in CODEX_TOOL_ITEMS:
-                name, args, out, failed = _codex_tool(it)
-                call = _codex_record('assistant', '', ts, uid, sid)
-                call['tools'] = [{'name': name, 'input': args}]
-                call['blocks'] = [('tool', f"{name} " + json.dumps(args)[:TOOL_ARG_HEAD])]
-                res = _codex_record('user', '', ts, '', sid)
-                res['results'] = 1
-                mark = ''
-                if failed:
-                    res['errs'] = 1
-                    mark = '[ERROR] '
-                res['res_txt'] = [mark + _result_text(out)]
-                msgs.extend([call, res])
+                msg_offs.append((off, off))
+        elif kind in CODEX_TOOL_ITEMS:
+            name, args, out, failed = _codex_tool(it)
+            call = _codex_record('assistant', '', ts, uid, sid)
+            call['tools'] = [{'name': name, 'input': args}]
+            call['blocks'] = [('tool', f"{name} " + json.dumps(args)[:TOOL_ARG_HEAD])]
+            res = _codex_record('user', '', ts, '', sid)
+            res['results'] = 1
+            mark = ''
+            if failed:
+                res['errs'] = 1
+                mark = '[ERROR] '
+            res['res_txt'] = [mark + _result_text(out)]
+            msgs.extend([call, res])
+            msg_offs.extend([(off, off), (off, off)])
     if items == 0:
         if len(legacy) > 0:
+            if offsets is not None:
+                offsets.extend(legacy_offs)
             return legacy
         if turns > 0:
             raise ValueError(f"nebula: unrecognized Codex transcript {jsonl_path.name} — {turns} turns but no "
                              f"item_completed or user_message records (Codex changed its session format; nebula "
                              f"needs an update)")
+    if offsets is not None:
+        offsets.extend(msg_offs)
     return msgs
 
 
-def _claude_msgs(jsonl_path: Path) -> List[Dict]:
-    """Message records from a Claude Code session JSONL (the original reader's first pass, unchanged)."""
+def _claude_msgs(jsonl_path: Path, start: int = 0, offsets: list = None) -> List[Dict]:
+    """Message records from a Claude Code session JSONL (the original reader's first pass, unchanged). `start` /
+    `offsets` (2026-10-21): read from byte `start`; append (line offset, line offset) for each returned record."""
     msgs = []
-    with open(jsonl_path, encoding='utf-8') as f:
-        for line in f:
-            try:
-                d = json.loads(line)
-            except ValueError:
-                continue
-            if 'type' not in d or d['type'] not in ('user', 'assistant'):
-                continue
-            if 'message' not in d:
-                continue
-            m = d['message']
-            if 'content' not in m:
-                continue
-            c = m['content']
-            blocks = []   # ordered assistant blocks: ('thinking'|'text'|'tool', str)
-            if isinstance(c, str):
-                texts, tools, errs, results, res_txt = [c], [], 0, 0, []
-                blocks = [('text', c)]
-            else:
-                for b in c:
-                    if not isinstance(b, dict) or 'type' not in b:
-                        continue
-                    if b['type'] == 'thinking' and 'thinking' in b and b['thinking']:
-                        blocks.append(('thinking', b['thinking']))
-                    elif b['type'] == 'text' and 'text' in b and b['text'].strip():
-                        blocks.append(('text', b['text']))
-                    elif b['type'] == 'tool_use':
-                        blocks.append(('tool', f"{b['name'] if 'name' in b else '?'} "
-                                       + json.dumps(b['input'] if 'input' in b else {})[:TOOL_ARG_HEAD]))
-                texts = [b['text'] for b in c
-                         if isinstance(b, dict) and b['type'] == 'text' and 'text' in b]
-                tools = [b for b in c if isinstance(b, dict) and b['type'] == 'tool_use']
-                res = [b for b in c if isinstance(b, dict) and b['type'] == 'tool_result']
-                errs = sum(1 for b in res if 'is_error' in b and b['is_error'])
-                results = len(res)
-                res_txt = [('[ERROR] ' if ('is_error' in b and b['is_error']) else '')
-                           + _result_text(b['content'] if 'content' in b else '')
-                           for b in res]
-            uuid = d['uuid'] if 'uuid' in d else ''
-            ts = d['timestamp'] if 'timestamp' in d else ''
-            sid = d['sessionId'] if 'sessionId' in d else jsonl_path.stem
-            msgs.append({'type': d['type'], 'text': '\n'.join(texts), 'tools': tools,
-                         'errs': errs, 'results': results, 'res_txt': res_txt,
-                         'blocks': blocks, 'uuid': uuid, 'ts': ts, 'sid': sid})
+    for off, line in jsonl_lines(jsonl_path, start):
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        if 'type' not in d or d['type'] not in ('user', 'assistant'):
+            continue
+        if 'message' not in d:
+            continue
+        m = d['message']
+        if 'content' not in m:
+            continue
+        c = m['content']
+        blocks = []   # ordered assistant blocks: ('thinking'|'text'|'tool', str)
+        if isinstance(c, str):
+            texts, tools, errs, results, res_txt = [c], [], 0, 0, []
+            blocks = [('text', c)]
+        else:
+            for b in c:
+                if not isinstance(b, dict) or 'type' not in b:
+                    continue
+                if b['type'] == 'thinking' and 'thinking' in b and b['thinking']:
+                    blocks.append(('thinking', b['thinking']))
+                elif b['type'] == 'text' and 'text' in b and b['text'].strip():
+                    blocks.append(('text', b['text']))
+                elif b['type'] == 'tool_use':
+                    blocks.append(('tool', f"{b['name'] if 'name' in b else '?'} "
+                                   + json.dumps(b['input'] if 'input' in b else {})[:TOOL_ARG_HEAD]))
+            texts = [b['text'] for b in c
+                     if isinstance(b, dict) and b['type'] == 'text' and 'text' in b]
+            tools = [b for b in c if isinstance(b, dict) and b['type'] == 'tool_use']
+            res = [b for b in c if isinstance(b, dict) and b['type'] == 'tool_result']
+            errs = sum(1 for b in res if 'is_error' in b and b['is_error'])
+            results = len(res)
+            res_txt = [('[ERROR] ' if ('is_error' in b and b['is_error']) else '')
+                       + _result_text(b['content'] if 'content' in b else '')
+                       for b in res]
+        uuid = d['uuid'] if 'uuid' in d else ''
+        ts = d['timestamp'] if 'timestamp' in d else ''
+        sid = d['sessionId'] if 'sessionId' in d else jsonl_path.stem
+        msgs.append({'type': d['type'], 'text': '\n'.join(texts), 'tools': tools,
+                     'errs': errs, 'results': results, 'res_txt': res_txt,
+                     'blocks': blocks, 'uuid': uuid, 'ts': ts, 'sid': sid})
+        if offsets is not None:
+            offsets.append((off, off))
     return msgs
 
 
@@ -350,7 +386,27 @@ def load_session_jsonl(jsonl_path: Path, skip_prefix: tuple = SHIELD_SKIP_PREFIX
         msgs = codex_msgs(jsonl_path)
     else:
         msgs = _claude_msgs(jsonl_path)
+    return pair_msgs(msgs, skip_prefix, absorb_prefix, feedback_prefix)[0]
 
+
+def read_msgs(jsonl_path: Path, start: int) -> tuple:
+    """(message records from byte `start`, the (read_from, line) offsets of each record, is this a Codex rollout)."""
+    offsets = []
+    codex = is_codex_rollout(jsonl_path)
+    if codex:
+        msgs = codex_msgs(jsonl_path, start, offsets)
+    else:
+        msgs = _claude_msgs(jsonl_path, start, offsets)
+    return msgs, offsets, codex
+
+
+def pair_msgs(msgs: List[Dict], skip_prefix: tuple = SHIELD_SKIP_PREFIX, absorb_prefix: tuple = ABSORB_PREFIX,
+              feedback_prefix: tuple = FEEDBACK_PREFIX, offsets: list = None) -> tuple:
+    """The original reader's pairing loop (unchanged) → (exchanges, starts): starts[k] = the (read_from, line) offsets of
+    exchange k's user record (None when no offsets are given). Pairing the records from that line on (read from
+    read_from) yields exchanges k… identical to the full read, for a NON-feedback exchange k: an exchange depends only on
+    the records from its own user record on, and a feedback exchange also needs the real pilot message before it."""
+    starts = []
     exchanges = []
     last_pilot = ''
     i = 0
@@ -418,10 +474,14 @@ def load_session_jsonl(jsonl_path: Path, skip_prefix: tuple = SHIELD_SKIP_PREFIX
                 'interrupted': interrupted,
                 'ts': msgs[i]['ts'][:10],
             })
+            if offsets is None:
+                starts.append(None)
+            else:
+                starts.append(offsets[i])
         i = j if j > i else i + 1
 
     for idx, ex in enumerate(exchanges):
         ex['exchange_index'] = idx
         nxt = [x for x in exchanges[idx + 1:] if not x['hook_feedback']]
         ex['next_user'] = nxt[0]['user'] if nxt else ''
-    return exchanges
+    return exchanges, starts

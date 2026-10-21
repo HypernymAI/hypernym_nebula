@@ -2,24 +2,31 @@
 """
 Claude Code Stop hook — local shield on the assistant's reply (build doc Part XVIII). NOT registered.
 
-stdin: the Stop event JSON (session_id, transcript_path, …). Scores every assistant text block of this
-turn with the configured Stop heads (max per head). Any head ≥ its threshold → {"decision": "block",
+stdin: the Stop event JSON (session_id, transcript_path, last_assistant_message, …). Scores every assistant text block
+of this turn with the configured Stop heads (max per head). Any head ≥ its threshold → {"decision": "block",
 "reason": …} so the reply is reframed before it reaches the pilot. After `max_rewrites` blocks for the same
 pilot message → allowed with a visible systemMessage (never silent, never endless). Disabled → exit 0.
 Every decision is logged. Errors raise (exit 1, stderr) — no silent pass.
+
+Reads (2026-10-21): only the transcript from the tracker's sync cursor — this turn and the LOOKBACK exchanges before it —
+never the whole file (a 153 MB session took 2.0-2.6 s per reply). The host writes the transcript asynchronously, so the
+reply it hands the hook (`last_assistant_message`: the turn's FINAL text block, measured 2026-10-21) may not be in the
+file yet: the hook re-reads its window until it is, for up to LAG_WAIT_S, and raises if it never lands — a reply is never
+judged or recorded from a transcript that does not hold it yet.
 
     <python> hook_stop.py [--config path] < event.json
 """
 import noegress                                   # noqa: F401 — FIRST: the no-network guarantee (noegress.py)
 import argparse
 import json
+import re
 import sys
 import time
 from pathlib import Path
 
 from brand import SHIELD_ICON
 from settings import excluded, resolve_config, soliton_on
-from shield_core import Shield, sha, transcript_turn
+from shield_core import Shield, sha, turn_of
 from tracker import Tracker
 
 
@@ -39,6 +46,9 @@ ASK = {'confession': 'fewer confessions',
 # the reply cannot change it, and asking for one produced nonsense (pilot, 2026-09-30: "2 … obvi"). It still shows on
 # the badge and in the judgement line.
 TRIGGERS = ('confession', 'handback', 'claim')
+LAG_WAIT_S = 5.0            # how long the final reply may take to reach the transcript file
+LAG_POLL_S = 0.05
+SPACE = re.compile(r'\s+')
 
 
 def class_levels(tr: Tracker, sh: Shield, session_id: str):
@@ -96,6 +106,31 @@ def judgement_line(tr: Tracker, sh: Shield, session_id: str) -> str:
     return f"{head}  " + '   '.join(parts) + "   (×threshold; ≥1.0 flagged)"
 
 
+def has_reply(blocks: list, final) -> bool:
+    """Does this turn's text, as read from the transcript, end with the reply the host says it finished with? Compared
+    without whitespace (the host and the file may lay out the same text differently). No final text → nothing to wait for."""
+    if final is None:
+        return True
+    want = SPACE.sub('', final)
+    if not want:
+        return True
+    return SPACE.sub('', ''.join(blocks)).endswith(want)
+
+
+def landed_window(tr: Tracker, path: Path, final) -> tuple:
+    """(window, pilot, blocks) once the transcript holds the final reply; raises after LAG_WAIT_S."""
+    deadline = time.monotonic() + LAG_WAIT_S
+    while True:
+        win = tr.window(path)
+        pilot, blocks = turn_of(win['msgs'])
+        if has_reply(blocks, final):
+            return win, pilot, blocks
+        if time.monotonic() > deadline:
+            raise RuntimeError(f"nebula: after {LAG_WAIT_S:.0f}s the transcript {path.name} still does not hold this "
+                               "turn's final reply — not judged, not recorded")
+        time.sleep(LAG_POLL_S)
+
+
 def run(event: dict, config: Path) -> tuple:
     """→ (exit_code, stdout, stderr)"""
     t0 = time.time()
@@ -105,13 +140,17 @@ def run(event: dict, config: Path) -> tuple:
     if excluded(sh.cfg, event['transcript_path'], event['cwd'] if 'cwd' in event else None):
         return 0, '', ''                     # excluded project: the transcript is never opened
     session_id = event['session_id']
-    pilot, blocks, _ = transcript_turn(event['transcript_path'])
+    path = Path(event['transcript_path'])
+    final = None
+    if 'last_assistant_message' in event:
+        final = event['last_assistant_message']
+    # central shadow tracker: every exchange of this session → ~/.nebula (both modes; local only)
+    tr = Tracker(Path(sh.cfg['db_path']), sh)
+    win, pilot, blocks = landed_window(tr, path, final)
     reply = '\n'.join(blocks)
     base = {'event': 'stop', 'session_id': session_id, 'pilot_sha': sha(pilot), 'text': reply,
             'config_sha': sh.config_sha}
-    # central shadow tracker: every exchange of this session → ~/.nebula (both modes; local only)
-    tr = Tracker(Path(sh.cfg['db_path']), sh)
-    tr.sync_session(Path(event['transcript_path']), last_turn_complete=True)   # Stop = this turn's reply is final
+    tr.sync_session(path, last_turn_complete=True, win=win)   # Stop = this turn's reply is final
     if soliton_on(sh.cfg):
         return soliton(event, tr, sh, base, pilot, blocks, t0)
     if sh.cfg['mode'] == 'shadow':

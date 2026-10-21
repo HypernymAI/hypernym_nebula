@@ -14,6 +14,12 @@ Design (Part XX, "best design" answer):
 sync_session(jsonl, last_turn_complete) is used by the Stop hook (this session, after every turn; True), by backfill.py
 and sync_one.py (transcript_state.turn_ended). last_turn_complete=False → the LAST exchange's reply is NOT recorded:
 rows are write-once (INSERT OR IGNORE), so a reply recorded mid-turn would stay truncated forever (S25).
+
+Incremental reads (2026-10-21): a sync reads the transcript only from its sync_cursor — the byte offset of the user
+record of the exchange LOOKBACK exchanges before the newest — never the whole file again. Every row it writes reads at
+most LOOKBACK earlier exchanges (repeat: 4 earlier asks; prev caps: 1; S1 'earlier': 2), so the rows are the ones a full
+read writes. The cursor is trusted only while the file has not shrunk and the line at the cursor hashes to the anchor
+recorded with it; otherwise (and on a session's first sync, or an S56 rescore) the file is read whole, once.
 Rageometry definitions = build doc Part XIX (harm_onset.py). No network. NO .get(). Paths passed in. Errors raise.
 """
 import hashlib
@@ -31,7 +37,8 @@ import numpy as np
 from shield_core import Shield
 from vendor_alliance import content, jaccard
 from ctxshield.dfc_adapter import TierAModel
-from shield_reader import SHIELD_SKIP_PREFIX, codex_models_by_item, codex_project, is_codex_rollout, load_session_jsonl      # S25: image-bearing pilot turns kept
+from shield_reader import (SHIELD_SKIP_PREFIX, codex_models_by_item, codex_project, is_codex_rollout, jsonl_lines,  # S25
+                           pair_msgs, read_msgs)
 from pilot_text import has_paste, own_words                           # S56: pasted blocks are not the pilot's words
 
 PROFANITY = re.compile(r"\b(fuck\w*|shit\w*|asshole\w*|prick\w*|bullshit|wtf|goddamn\w*|damn\w*|dumbass|idiot\w*)\b", re.I)
@@ -44,6 +51,7 @@ EXCERPT = 300
 # = the 2 previous asks). A session is re-derived when session_rescore holds less than PILOT_TEXT_VERSION.
 PILOT_TEXT_VERSION = 1
 PILOT_WINDOW, REPLY_WINDOW = 4, 2
+LOOKBACK = 4             # earlier exchanges any new row reads (rageometry repeat: 4; prev caps: 1; S1 earlier: 2)
 
 MIGRATIONS = [
     [
@@ -130,6 +138,12 @@ MIGRATIONS = [
         "CREATE TABLE IF NOT EXISTS session_rescore (session_id TEXT PRIMARY KEY, pilot_text INTEGER NOT NULL, "
         "rescored_at REAL NOT NULL)",
     ],
+    # v4 — 2026-10-21: where the next sync of a transcript starts reading (incremental reads, see the module doc)
+    [
+        "CREATE TABLE IF NOT EXISTS sync_cursor (source_path TEXT PRIMARY KEY, read_from INTEGER NOT NULL, "
+        "first_line INTEGER NOT NULL, exchange_index INTEGER NOT NULL, anchor TEXT NOT NULL, size INTEGER NOT NULL, "
+        "synced_at REAL NOT NULL)",
+    ],
 ]
 
 
@@ -157,20 +171,70 @@ def rageometry(ex: List[Dict], i: int) -> Dict:
             'repeat': int(rep), 'anger_onset': int(onset and marker), 'celebration_onset': int(onset and not marker)}
 
 
-def models_by_uuid(jsonl: Path) -> Dict[str, str]:
+def models_by_uuid(jsonl: Path, start: int = 0) -> Dict[str, str]:
     if is_codex_rollout(jsonl):                  # Codex: the model of each reply's turn (turn_context)
-        return codex_models_by_item(jsonl)
+        return codex_models_by_item(jsonl, start)
     out = {}
-    with open(jsonl, encoding='utf-8') as f:
-        for line in f:
-            try:
-                d = json.loads(line)
-            except ValueError:
-                continue
-            if 'type' in d and d['type'] == 'assistant' and 'uuid' in d and 'message' in d \
-                    and isinstance(d['message'], dict) and 'model' in d['message']:
-                out[d['uuid']] = d['message']['model']
+    for _, line in jsonl_lines(jsonl, start):
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        if 'type' in d and d['type'] == 'assistant' and 'uuid' in d and 'message' in d \
+                and isinstance(d['message'], dict) and 'model' in d['message']:
+            out[d['uuid']] = d['message']['model']
     return out
+
+
+def anchor_of(jsonl: Path, offset: int) -> str:
+    """sha256 of the whole line starting at `offset` — what a cursor is checked against before it is trusted."""
+    with open(jsonl, 'rb') as f:
+        f.seek(offset)
+        return hashlib.sha256(f.readline()).hexdigest()
+
+
+def read_window(c: sqlite3.Connection, jsonl: Path) -> Dict:
+    """The part of the transcript the next sync needs: from the session's sync_cursor when it can be trusted, else the
+    whole file. Reads from the cursor's read_from (Codex: the turn_context giving the model) and pairs from its
+    first_line (the user record of the exchange at exchange_index). → {'st': stat taken BEFORE reading, 'msgs' (from
+    first_line), 'ex' (exchange_index = its index in the WHOLE transcript), 'starts' ((read_from, line) of each
+    exchange's user record), 'start' (read_from), 'first', 'base'}."""
+    jsonl = Path(jsonl)
+    st = jsonl.stat()
+    start, first, base = 0, 0, 0
+    have = c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_cursor'").fetchone()
+    v = None
+    if have is not None:
+        v = c.execute("SELECT pilot_text FROM session_rescore WHERE session_id=?", (jsonl.stem,)).fetchone()
+    if v is not None and v[0] >= PILOT_TEXT_VERSION:       # an S56 rescore re-derives from the whole transcript
+        row = c.execute("SELECT read_from, first_line, exchange_index, anchor, size FROM sync_cursor "
+                        "WHERE source_path=?", (str(jsonl),)).fetchone()
+        if row is not None:
+            if st.st_size >= row[4]:                       # shrunk = rewritten, not appended: read it whole
+                if anchor_of(jsonl, row[1]) == row[3]:     # the user record at the cursor is still the one recorded
+                    start, first, base = row[0], row[1], row[2]
+    msgs, offsets, _ = read_msgs(jsonl, start)
+    keep = 0
+    while keep < len(msgs) and offsets[keep][1] < first:  # read for the model only; pairing starts at first_line
+        keep += 1
+    msgs, offsets = msgs[keep:], offsets[keep:]
+    ex, starts = pair_msgs(msgs, offsets=offsets)
+    for e in ex:
+        e['exchange_index'] += base
+    return {'st': st, 'msgs': msgs, 'ex': ex, 'starts': starts, 'start': start, 'first': first, 'base': base}
+
+
+def next_cursor(win: Dict) -> tuple:
+    """(read_from, first_line, exchange_index) for the next sync: the user record of the exchange LOOKBACK before the
+    newest, moved back past hook-feedback exchanges (their pilot text is the real message before them). Too few
+    exchanges → where this window started."""
+    ex = win['ex']
+    k = len(ex) - 1 - LOOKBACK
+    while k >= 0 and ex[k]['hook_feedback']:
+        k -= 1
+    if k < 0:
+        return win['start'], win['first'], win['base']
+    return win['starts'][k][0], win['starts'][k][1], ex[k]['exchange_index']
 
 
 def unpack_scores(blob: bytes) -> Dict[str, float]:
@@ -234,18 +298,30 @@ class Tracker:
         finally:
             c.close()
 
-    def sync_session(self, jsonl: Path, last_turn_complete: bool, agent: str = 'claude-code') -> Dict[str, int]:
+    def window(self, jsonl: Path) -> Dict:
+        """read_window on this tracker's DB (the Stop hook reads once, checks the reply landed, then syncs that read)."""
+        c = self._conn()
+        try:
+            return read_window(c, jsonl)
+        finally:
+            c.close()
+
+    def sync_session(self, jsonl: Path, last_turn_complete: bool, agent: str = 'claude-code',
+                     win: Dict = None) -> Dict[str, int]:
         """Score OUTSIDE any transaction, then write each ~COMMIT_EVERY_S batch in one short transaction: the write lock is
         held for milliseconds, never for the scoring (a 39-s first sync once locked every other window out, S55). Rows are
         write-once (INSERT OR IGNORE, keyed by message uuid) so a crash mid-way loses nothing and the next sync resumes; the
-        checkpoint is written LAST, with the final batch."""
+        checkpoint and the sync cursor are written LAST, with the final batch. `win`: a read_window result already taken
+        (the Stop hook's); otherwise this reads its own."""
         jsonl = Path(jsonl)
-        st = jsonl.stat()
+        if win is None:
+            win = self.window(jsonl)
+        st = win['st']
         sid = jsonl.stem
         project = jsonl.parent.name
         if is_codex_rollout(jsonl):              # Codex keeps sessions in date folders: name the project by its cwd
             agent, project = 'codex', codex_project(jsonl)
-        ex = load_session_jsonl(jsonl)
+        ex = win['ex']
         c = self._conn()
         try:
             have_p = {r[0] for r in c.execute("SELECT uuid FROM pilot_turns WHERE session_id=?", (sid,))}
@@ -291,7 +367,7 @@ class Tracker:
                     continue                       # the reply is still being written — recorded when the turn ends
                 if e['assistant_uuid'] and e['assistant_uuid'] not in have_r:
                     if models is None:
-                        models = models_by_uuid(jsonl)
+                        models = models_by_uuid(jsonl, win['start'])
                     blocks = [p for k, p in e['events'] if k == 'text']
                     docs = self.shield.stop_docs(e['user'], blocks)
                     docs['S1'] = [self.shield.pilot_turn_fields(e['user'], ex[:i])]
@@ -311,11 +387,16 @@ class Tracker:
                                    json.dumps(fired), int(bool(cert)), self.shield.cfg['mode'],
                                    self.shield.config_sha, self.research.version, text_sha, now,
                                    json.dumps(live))))
+            n = win['base'] + len(ex)
             queue.append(('c', "INSERT OR REPLACE INTO checkpoints VALUES (?,?,?,?,?)",
-                          (str(jsonl), st.st_size, st.st_mtime, len(ex), now)))
+                          (str(jsonl), st.st_size, st.st_mtime, n, now)))
             queue.append(('v', "INSERT OR REPLACE INTO session_rescore VALUES (?,?,?)", (sid, PILOT_TEXT_VERSION, now)))
+            read_from, first_line, idx = next_cursor(win)
+            queue.append(('k', "INSERT OR REPLACE INTO sync_cursor VALUES (?,?,?,?,?,?,?)",
+                          (str(jsonl), read_from, first_line, idx, anchor_of(jsonl, first_line), st.st_size, now)))
             flush()
-            return {'exchanges': len(ex), 'new_pilot_turns': counts['p'], 'new_replies': counts['r'],
-                    'rescored_pilot_turns': len(redo_p), 'rescored_replies': len(redo_r)}
+            return {'exchanges': n, 'new_pilot_turns': counts['p'], 'new_replies': counts['r'],
+                    'rescored_pilot_turns': len(redo_p), 'rescored_replies': len(redo_r),
+                    'read_from': win['start'], 'read_bytes': st.st_size - win['start']}
         finally:
             c.close()

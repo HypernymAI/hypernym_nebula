@@ -194,24 +194,33 @@ class Shield:
         return '\n'.join(lines)
 
 
+def turn_of(msgs: List[Dict]) -> Tuple[str, List[str]]:
+    """(last real pilot message, its assistant text blocks so far) from message records (shield_reader.read_msgs). The
+    Stop hook reads it from its window of the transcript (2026-10-21), which always opens at or before the last real
+    pilot message, so it is what transcript_turn reads from the whole file."""
+    pilot, blocks = '', []
+    for r in msgs:
+        if r['type'] == 'user':
+            if r['results'] > 0:
+                continue                          # a tool result, not the pilot
+            if not Shield.is_real_pilot(r['text']):
+                continue
+            pilot, blocks = r['text'], []
+        else:
+            for kind, text in r['blocks']:
+                if kind == 'text':
+                    if text.strip():
+                        blocks.append(text)
+    return pilot, blocks
+
+
 def transcript_turn(path: str) -> Tuple[str, List[str], List[Dict]]:
     """(last real pilot message, this turn's assistant text blocks, completed exchanges) — the
     benchmark's exchange reader over the live transcript. A Codex rollout is read through codex_msgs (2026-10-19)."""
     ex = load_session_jsonl(Path(path))
     pilot, blocks = '', []
     if is_codex_rollout(Path(path)):
-        for r in codex_msgs(Path(path)):
-            if r['type'] == 'user':
-                if r['results'] > 0:
-                    continue                      # a tool result, not the pilot
-                if not Shield.is_real_pilot(r['text']):
-                    continue
-                pilot, blocks = r['text'], []
-            else:
-                for kind, text in r['blocks']:
-                    if kind == 'text':
-                        if text.strip():
-                            blocks.append(text)
+        pilot, blocks = turn_of(codex_msgs(Path(path)))
         return pilot, blocks, ex
     with open(path, encoding='utf-8') as f:
         for line in f:
