@@ -31,7 +31,7 @@ import numpy as np
 from shield_core import Shield
 from vendor_alliance import content, jaccard
 from ctxshield.dfc_adapter import TierAModel
-from shield_reader import SHIELD_SKIP_PREFIX, codex_project, is_codex_rollout, load_session_jsonl      # S25: image-bearing pilot turns kept
+from shield_reader import SHIELD_SKIP_PREFIX, codex_models_by_item, codex_project, is_codex_rollout, load_session_jsonl      # S25: image-bearing pilot turns kept
 from pilot_text import has_paste, own_words                           # S56: pasted blocks are not the pilot's words
 
 PROFANITY = re.compile(r"\b(fuck\w*|shit\w*|asshole\w*|prick\w*|bullshit|wtf|goddamn\w*|damn\w*|dumbass|idiot\w*)\b", re.I)
@@ -158,6 +158,8 @@ def rageometry(ex: List[Dict], i: int) -> Dict:
 
 
 def models_by_uuid(jsonl: Path) -> Dict[str, str]:
+    if is_codex_rollout(jsonl):                  # Codex: the model of each reply's turn (turn_context)
+        return codex_models_by_item(jsonl)
     out = {}
     with open(jsonl, encoding='utf-8') as f:
         for line in f:

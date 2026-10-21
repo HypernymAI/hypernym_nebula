@@ -1,4 +1,10 @@
-# ctxshield native core — CPU (NEON) · Metal · CUDA (UNTESTED)
+# ctxshield native core
+
+**What ships in the plugin: the CPU scorer only.** On macOS that is the module `_native.cpython-313-darwin.so`; on Linux the
+fully static programs in `ctxshield/static/` (built reproducibly from `scorer/` — see `static_build/README.md`). Every
+shipped file is pinned by sha256 in `PLATFORMS.json` and checked before it loads or runs. The Metal and CUDA backends
+below are research source kept with the core; they are not built into the plugin, and the loader refuses any backend
+that is not built.
 
 Build doc: `__production_steps/2026-09-27_dfc_solid_state_shield_classifier_build.md` Part IX (§9.1–9.6),
 feature spec §5.2c + r2 §5.2d, build log §14 S3 / S8. The C++ featurizer IS the feature spec;
@@ -14,7 +20,7 @@ feature spec §5.2c + r2 §5.2d, build log §14 S3 / S8. The C++ featurizer IS t
 | `src/c_abi.cpp` | C ABI, CPU backend, CPU tokenization + parallel packing shared by the GPU hosts |
 | `src/backend.h`, `src/parallel.h` | internal backend interface, thread fan-out, per-thread scratch |
 | `src/metal/shield.metal`, `src/metal/metal_backend.mm`, `src/metal/embed.cmake` | Metal kernels, Obj-C++ host (shared buffers, double-buffered chunks), metallib embedded in the extension |
-| `src/cuda/shield.cu`, `src/cuda/cuda_backend.cpp`, `src/cuda/shield_cuda.h` | CUDA kernels (sm_89) + host (pinned buffers, 2 streams) — **UNTESTED** |
+| `src/cuda/shield.cu`, `src/cuda/cuda_backend.cpp`, `src/cuda/shield_cuda.h` | CUDA kernels (sm_89) + host (pinned buffers, 2 streams) — research source, not built into the plugin |
 | `python/bind.cpp` | pybind11 module `ctxshield._native` |
 | `backends.json` | backend manifest: `backends.cuda.verified=false` until the L4 run passes |
 | `bench/bench_cpu.py`, `bench/bench_metal.py`, `bench/bench_kernel.cpp` | benchmarks (results in `bench/results/`) |
@@ -75,7 +81,7 @@ the doc's insertions) — counted in `n_overflow_docs`. Chunks of 16,384 docs ar
 the CPU tokenizes chunk c+1 while the GPU runs chunk c. §9.3's kernels A and B are fused (the hashes
 never leave the threadgroup).
 
-## CUDA (§9.4) — UNTESTED, no NVIDIA device here
+## CUDA (§9.4) — research source, not built into the plugin
 
 Line-for-line port of the Metal kernels: one block (256) per doc, 8,192-slot shared table
 (34,952 B dynamic shared memory, opt-in attribute set), `__ldg` gathers, warp-shuffle reductions,

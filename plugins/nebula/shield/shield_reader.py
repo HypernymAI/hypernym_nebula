@@ -73,6 +73,42 @@ def codex_project(jsonl_path: Path) -> str:
     return re.sub(r'[^A-Za-z0-9]', '-', meta['payload']['cwd'])
 
 
+def codex_models_by_item(jsonl_path: Path) -> Dict[str, str]:
+    """Each Codex reply (AgentMessage item id) → the model that wrote it: the `model` of the turn's `turn_context`
+    record, which Codex writes at the start of every turn."""
+    out, model = {}, 'unknown'
+    with open(jsonl_path, encoding='utf-8') as f:
+        for line in f:
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(d, dict):
+                continue
+            if 'type' not in d:
+                continue
+            if 'payload' not in d:
+                continue
+            p = d['payload']
+            if not isinstance(p, dict):
+                continue
+            if d['type'] == 'turn_context':
+                if 'model' in p:
+                    model = p['model']
+                continue
+            if d['type'] != 'event_msg':
+                continue
+            if 'type' not in p:
+                continue
+            if p['type'] != 'item_completed':
+                continue
+            it = p['item']
+            if it['type'] == 'AgentMessage':
+                if 'id' in it:
+                    out[it['id']] = model
+    return out
+
+
 def _codex_record(kind: str, text: str, ts: str, uuid: str, sid: str) -> Dict:
     return {'type': kind, 'text': text, 'tools': [], 'errs': 0, 'results': 0, 'res_txt': [], 'blocks': [],
             'uuid': uuid, 'ts': ts, 'sid': sid}

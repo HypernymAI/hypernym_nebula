@@ -20,7 +20,7 @@ replaces it, backing up `settings.json` first). Check with `claude plugin list` 
   latest reply came to its threshold.
 - **A short note under a flagged reply**, naming the pattern. Claude sees the note too, and its `shield-reframe` skill
   tells it to fix the reply rather than argue with the flag.
-- **Optional soliton mode** (beta): a reply that peaks gets a vivid banner and Claude rephrases it once. Say
+- **Soliton mode** (optional): a reply that peaks gets a vivid banner and Claude rephrases it once. Say
   **"hypernym nebula"** to switch it on, "hypernym nebula off" to switch it off.
 
 ## Requirements
@@ -46,7 +46,8 @@ Or, inside Claude Code:
 /plugin install nebula@hypernym-nebula
 ```
 
-Then start a new session. Until that first session has run, the status line says "finishing setup at session start".
+Then start a new session: Nebula builds its environment as that session starts. Until then the status line says
+"restart Claude Code once to finish setup".
 
 ## Commands
 
@@ -57,22 +58,23 @@ Then start a new session. Until that first session has run, the status line says
 | `/nebula:shield-retention none\|excerpt\|full` | What transcript text is kept. Default `none`: scores and counts only. |
 | `/nebula:shield-exclude <glob>` · `/nebula:shield-include <glob>` | Keep projects out entirely (never opened, scored or stored), or let them back in. |
 | `/nebula:shield-export` | Write everything Nebula has stored to a readable JSON file in `~/.nebula`. |
-| `/nebula:shield-purge [yes]` | Delete the database, caches and logs. Without `yes` it only shows what would go. |
+| `/nebula:shield-purge [yes]` | Delete the database, caches and logs. Without `yes` it only shows what would go; with `yes` it asks you to confirm first. |
 | `/nebula:shield-backfill` | Opt in: score your past Claude Code sessions on this machine (low priority, never uploaded). |
-| `/nebula:shield-soliton [on\|off]` | Soliton mode (beta), as above. |
+| `/nebula:shield-soliton [on\|off]` | Soliton mode, as above; with no argument it shows whether it is on. |
 | `/nebula:shield-wings [number\|on\|off]` | Choose the wings beside the logo on the badge. |
 | `/nebula:statusline [remove\|force]` | Take the status line out, or put it over someone else's (backed up first). |
 
 ## Privacy
 
 Nebula never sends your data anywhere. Every Nebula process starts by installing an audit hook that blocks network
-connections, DNS lookups and HTTP requests; it can't be removed once installed. The models are fixed files, verified
-against a SHA-256 manifest on every load. By default the local record keeps scores and counts, not what you or Claude
-wrote. The only download is `uv` fetching Nebula's pinned Python packages from PyPI on the first run.
+connections, DNS lookups and HTTP requests, and it stays in place for the life of the process. The models are fixed
+files, verified against a SHA-256 manifest on every load, and the native scorer runs only when it matches its published
+SHA-256. By default the local record keeps scores and counts, not what you or Claude wrote. Commands never run what you
+type as shell, and Nebula never changes Claude Code's permissions. The only download is `uv` fetching Nebula's pinned
+Python packages from PyPI as the first session starts.
 
 The detectors were trained on the author's own labelled sessions, never on yours, and the weights passed a leakage
-gate before release. The full list of guarantees, how each is enforced, and the tests that prove them:
-[`plugins/nebula/PRIVACY.md`](plugins/nebula/PRIVACY.md).
+gate before release. Every guarantee and how it is enforced: [`plugins/nebula/PRIVACY.md`](plugins/nebula/PRIVACY.md).
 
 ## Files on your machine
 

@@ -1,5 +1,5 @@
 ---
-description: Soliton (beta) — when a reply peaks orange on the shield, flag it with a vivid banner and have Claude rephrase it once. "on", "off", or nothing to see the current state.
+description: Soliton — when a reply peaks orange on the shield, flag it with a vivid banner and have Claude rephrase it once. "on", "off", or nothing to see the current state.
 argument-hint: [on | off]
 allowed-tools: mcp__plugin_nebula_nebula__shield_soliton
 ---

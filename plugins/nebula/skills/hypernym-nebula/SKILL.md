@@ -9,6 +9,6 @@ Call the nebula MCP tool `shield_soliton` with `state: "off"` when the user said
 off"), otherwise with `state: "on"`. Show its returned text verbatim and stop there: no question, no offer, no next
 step. Do not run anything else.
 
-(Soliton, beta: when a reply peaks orange on the shield — confession, handback or claim at 1.0× or more — a bright
+(Soliton: when a reply peaks orange on the shield — confession, handback or claim at 1.0× or more — a bright
 SHIELDED banner appears under it, the spinner shows "shielding", and Claude rephrases it once, keeping anything the user
 asked for on purpose. Nothing leaves the computer.)
